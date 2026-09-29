@@ -135,3 +135,14 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   - Cenários: default → serviços encontrados; `not_found` → vazio; `timeout` → `SourceTimeoutException`; `error` → `SourceUnavailableException`.
 - Registrado no `SourceRegistry`.
 - Testes: `HoleheMockAdapterTest` (key, suporte por e-mail, serviços, not_found/timeout/error, normalização, registro).
+
+## Etapa 14 — Normalização
+
+- `App\Services\SourceResultNormalizer`: transforma a saída dos adapters em `source_results` padrão.
+  - Preserva URL pública (só `http(s)://`; demais viram `null`).
+  - Extrai tipo de entidade (default `unknown`).
+  - Remove HTML cru (`strip_tags`) de `value`/`title`/`description`/evidência.
+  - Timestamp (`observed_at`) e `metadata`/`raw_payload` JSON.
+  - `evidenceAttributes()` para mapear evidências.
+- `ExecuteSourceJob` refatorado para usar o normalizador (antes a lógica ficava inline).
+- Testes: `SourceResultNormalizerTest` (atributos, strip de HTML, URL, entity_type default, evidências, e normalização de **todos** os adapters registrados).

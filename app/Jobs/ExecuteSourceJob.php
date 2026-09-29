@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\SourceDefinition;
 use App\Models\SourceRun;
+use App\Services\SourceResultNormalizer;
 use App\Sources\Exceptions\SourceException;
 use App\Sources\InvestigationContext;
 use App\Sources\InvestigationInput;
@@ -71,26 +72,15 @@ class ExecuteSourceJob implements ShouldQueue
 
     private function persistResult(SourceRun $sourceRun, SourceDefinition $definition, SourceResult $result): void
     {
-        $model = $sourceRun->sourceResults()->create([
-            'source_definition_id' => $definition->id,
-            'entity_type' => $result->entityType,
-            'value' => $result->value,
-            'url' => $result->url,
-            'title' => $result->title,
-            'description' => $result->description,
-            'confidence' => $result->confidence,
-            'raw_payload' => [
-                'evidence' => $result->evidence,
-                'metadata' => $result->metadata,
-            ],
-            'observed_at' => now(),
-        ]);
+        $normalizer = app(SourceResultNormalizer::class);
 
-        foreach ($result->evidence as $evidence) {
-            $model->evidence()->create([
-                'type' => $evidence['type'] ?? 'reference',
-                'value' => $evidence['value'] ?? null,
-            ]);
+        $model = $sourceRun->sourceResults()->create(array_merge(
+            ['source_definition_id' => $definition->id],
+            $normalizer->attributes($result),
+        ));
+
+        foreach ($normalizer->evidenceAttributes($result) as $evidence) {
+            $model->evidence()->create($evidence);
         }
     }
 
