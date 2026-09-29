@@ -3,7 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\InvestigationRun;
-use App\Models\SourceResult;
+use App\Services\CorrelationService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -17,7 +17,7 @@ class BuildCorrelationJob implements ShouldQueue
 
     public function __construct(public int $investigationRunId) {}
 
-    public function handle(): void
+    public function handle(CorrelationService $correlation): void
     {
         $run = InvestigationRun::findOrFail($this->investigationRunId);
 
@@ -27,24 +27,7 @@ class BuildCorrelationJob implements ShouldQueue
             return;
         }
 
-        // Correlação básica (expandida na etapa 16): fontes distintas com correspondência.
-        $results = SourceResult::query()
-            ->whereHas('sourceRun', fn ($q) => $q->where('investigation_run_id', $run->id))
-            ->get();
-
-        $distinctSources = $results
-            ->filter(fn (SourceResult $r) => empty($r->metadata['duplicate_of']))
-            ->pluck('source_definition_id')
-            ->unique()
-            ->count();
-
-        $metadata = $run->metadata ?? [];
-        $metadata['correlation'] = [
-            'score' => $distinctSources,
-            'rule_version' => 'v0',
-        ];
-        $run->metadata = $metadata;
-        $run->save();
+        $correlation->persist($run);
 
         $run->markPipelineStage('correlated_at');
 

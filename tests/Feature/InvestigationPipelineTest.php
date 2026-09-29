@@ -15,6 +15,7 @@ use App\Models\SourceDefinition;
 use App\Models\SourceRun;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\CorrelationService;
 use App\Services\CreditLedgerService;
 use App\Services\ResultDeduplicator;
 use App\Sources\SourceRegistry;
@@ -162,7 +163,7 @@ class InvestigationPipelineTest extends TestCase
 
         (new NormalizeSourceResultsJob($run->id))->handle(app(ResultDeduplicator::class));
         (new DeduplicateResultsJob($run->id))->handle(app(ResultDeduplicator::class));
-        (new BuildCorrelationJob($run->id))->handle();
+        (new BuildCorrelationJob($run->id))->handle(app(CorrelationService::class));
         (new BuildHtmlReportJob($run->id))->handle();
         (new ReleaseReservedCreditsJob($run->id))->handle(app(CreditLedgerService::class));
 

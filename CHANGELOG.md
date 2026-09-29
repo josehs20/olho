@@ -156,3 +156,13 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - `NormalizeSourceResultsJob` usa `ResultDeduplicator::dedupHash` (hash canônico); `DeduplicateResultsJob` usa `deduplicate()`.
 - Ajuste no `InvestigationPipelineTest` (URLs distintas não são mais duplicadas entre si).
 - Testes: `ResultDeduplicatorTest` (duplicados exatos, quase duplicados, itens distintos, não apaga evidência, `canonicalUrl`).
+
+## Etapa 16 — Correlação
+
+- `App\Services\CorrelationService` (determinístico, configurável, explicável):
+  - Pesos configuráveis em `config/correlation.php` (username +40, nome +20, e-mail +20, imagem +20*, bio +10, localização +10; *não usado no MVP).
+  - Persiste em `run.metadata.correlation`: `score` (máx. 100), `rule_version` (`v1`), `signals` (sinais que casaram) e `evidence_ids` (resultados usados).
+  - `label()` neutro: `baixa correspondência` (<30), `possível correspondência` (30–59), `correspondência forte por sinais públicos` (≥60).
+  - Sem IA; sem afirmar identidade.
+- `BuildCorrelationJob` refatorado para usar o serviço.
+- Testes: `CorrelationServiceTest` (username, nome, e-mail, localização, determinismo com mesmos inputs, persistência).
