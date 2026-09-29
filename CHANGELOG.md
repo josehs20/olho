@@ -111,3 +111,11 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   - Sem acesso à internet.
 - Registrado no `SourceRegistry` (AppServiceProvider).
 - Testes: `MaigretMockAdapterTest` (key, suporte, found/not_found/timeout/error, normalização, registro).
+
+## Etapa 11 — Sherlock mock
+
+- `App\Sources\Adapters\SherlockMockAdapter` (key `sherlock`), mesmos princípios do Maigret.
+  - Aceita `username`; múltiplos perfis determinísticos (twitter/facebook/youtube/twitch/pinterest).
+  - Cenários: default → múltiplos perfis; `not_found` → vazio; `timeout` → `SourceTimeoutException`; `error` → `SourceUnavailableException` (mensagem sanitizada).
+- Registrado no `SourceRegistry`.
+- Testes: `SherlockMockAdapterTest` (key, suporte, múltiplos perfis, not_found/timeout/erro sanitizado, normalização, registro).

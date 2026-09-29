@@ -8,6 +8,7 @@ use App\Payments\FakePixProvider;
 use App\Payments\PaymentProvider;
 use App\Policies\InvestigationPolicy;
 use App\Sources\Adapters\MaigretMockAdapter;
+use App\Sources\Adapters\SherlockMockAdapter;
 use App\Sources\Mocks\MockEmailSource;
 use App\Sources\Mocks\MockUsernameSource;
 use App\Sources\Mocks\MockWebSource;
@@ -35,6 +36,7 @@ class AppServiceProvider extends ServiceProvider
                 new MockEmailSource,
                 new MockWebSource,
                 new MaigretMockAdapter,
+                new SherlockMockAdapter,
             ]);
         });
     }
