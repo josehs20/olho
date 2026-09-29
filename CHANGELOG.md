@@ -230,3 +230,10 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - Páginas públicas editáveis: `legal/privacy.blade.php` e `legal/terms.blade.php` (placeholders).
 - Documentado que base legal/textos finais devem ser validados antes da produção (CHANGELOG).
 - Testes: `PrivacyTest` (privacidade/termos, tela de privacidade, exportação, exclusão anonimiza e remove investigações) + ajuste no `ProfileTest`.
+
+## Etapa 24 — Hardening de segurança
+
+- Auditoria: sem shell commands, sem SQL cru (`DB::raw`/`whereRaw`), sem `create($request->all())`, sem `{!! !!}` no código de aplicação.
+- `App\Http\Middleware\SecurityHeaders` (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy) adicionado ao grupo `web`.
+- Rate limit em endpoints sensíveis: `POST /investigations` e `POST /credits/{package}/checkout` (`throttle:10,1`).
+- Testes de segurança: `SecurityTest` (headers, mass assignment de `is_admin`, XSS no título da investigação, busca admin segura contra SQL injection).

@@ -51,11 +51,14 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.'
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/credits', [PaymentController::class, 'index'])->name('payments.index');
-    Route::post('/credits/{package}/checkout', [PaymentController::class, 'store'])->name('payments.store');
+    Route::post('/credits/{package}/checkout', [PaymentController::class, 'store'])->middleware('throttle:10,1')->name('payments.store');
     Route::get('/payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
     Route::post('/payments/{payment}/simulate', [PaymentController::class, 'simulate'])->name('payments.simulate');
 
-    Route::resource('investigations', InvestigationController::class)->only(['index', 'create', 'store', 'show']);
+    Route::get('/investigations', [InvestigationController::class, 'index'])->name('investigations.index');
+    Route::get('/investigations/create', [InvestigationController::class, 'create'])->name('investigations.create');
+    Route::post('/investigations', [InvestigationController::class, 'store'])->middleware('throttle:10,1')->name('investigations.store');
+    Route::get('/investigations/{investigation}', [InvestigationController::class, 'show'])->name('investigations.show');
 
     Route::get('/investigations/{investigation}/runs/{run}/report', [ReportController::class, 'show'])->name('investigations.report');
 
