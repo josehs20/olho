@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Admin\AuditController as AdminAuditController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\InvestigationController as AdminInvestigationController;
@@ -17,6 +18,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::view('/privacy', 'legal.privacy')->name('legal.privacy');
+Route::view('/terms', 'legal.terms')->name('legal.terms');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
@@ -54,6 +58,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('investigations', InvestigationController::class)->only(['index', 'create', 'store', 'show']);
 
     Route::get('/investigations/{investigation}/runs/{run}/report', [ReportController::class, 'show'])->name('investigations.report');
+
+    Route::get('/account/privacy', [AccountController::class, 'privacy'])->name('account.privacy');
+    Route::get('/account/export', [AccountController::class, 'export'])->name('account.export');
 });
 
 Route::post('/payments/webhook', [PaymentController::class, 'webhook'])->name('payments.webhook');

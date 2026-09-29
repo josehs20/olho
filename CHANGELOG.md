@@ -220,3 +220,13 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - Jobs registram eventos no canal `investigations`: `StartInvestigationRunJob` (`run.started`/`run.failed`) e `ExecuteSourceJob` (`source.executed` com status/erro/duração), sempre sanitizados.
 - Interface administrativa de auditoria já existente (etapa 20).
 - Testes: `LogSanitizerTest` (chaves sensíveis, PIX key em string, dados seguros intactos).
+
+## Etapa 23 — Privacidade e governança
+
+- `config/privacy.php`: retenção configurável por categoria (investigações, relatórios, resultados, logs, auditoria, financeiro).
+- `App\Services\AccountDeletionService`: exclusão de conta remove dados operacionais (investigações/results/relatórios via cascade) e **anonimiza** dados pessoais, preservando registros financeiros/auditoria.
+- `ProfileController::destroy` passa a usar o serviço (em vez de `$user->delete()`).
+- `AccountController`: `privacy()` (tela de privacidade/contato) e `export()` (exportação JSON dos dados da conta).
+- Páginas públicas editáveis: `legal/privacy.blade.php` e `legal/terms.blade.php` (placeholders).
+- Documentado que base legal/textos finais devem ser validados antes da produção (CHANGELOG).
+- Testes: `PrivacyTest` (privacidade/termos, tela de privacidade, exportação, exclusão anonimiza e remove investigações) + ajuste no `ProfileTest`.
