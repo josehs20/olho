@@ -42,3 +42,16 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   - Valores monetários em centavos inteiros (`price_cents`, `amount_cents`, `cost_operational_cents`); créditos como inteiros.
   - Casts JSON (`array`) e `datetime` nos campos pertinentes.
 - Models usam `$guarded = []` + `casts()` (populados por services, não por input de request); `User` ganhou `wallet()`, `investigations()`, `payments()`.
+
+## Etapa 05 — Sistema de créditos
+
+- Criado `App\Services\CreditLedgerService` (domínio) com: `balance`, `statement`, `purchase`, `promotional`, `refund`, `adminAdjust`, `reserve`, `consume`, `release`, `releaseExpiredReservations`.
+- Exceções de domínio: `InsufficientCreditsException`, `InvalidReservationStateException`.
+- **Decisões**:
+  - Movimento de saldo sempre via `DB::transaction` + `lockForUpdate()` na carteira (impede corrida e saldo negativo).
+  - Idempotência por `idempotency_key` (único) em ledger/reservas; retorno do registro existente em chamadas repetidas.
+  - `reserve` = débito imediato (hold), criando ledger `reserve` (-) + `credit_reservations`; `consume` finaliza (ledger `consume` com amount 0, referência à reserva); `release` devolve o saldo (ledger `release` +).
+  - `adminAdjust` exige motivo; pode ser negativo, mas nunca abaixo de zero.
+  - `releaseExpiredReservations` compensa reservas vencidas (idempotente por reserva).
+- Testes: `CreditLedgerServiceTest` (12 cenários: saldo, reserva, consumo, liberação, saldo insuficiente, ajuste sem motivo, idempotência, estado inválido, expiração, invariante `balance = Σ ledger`).
+- **Concorrência**: `CreditConcurrencyTest` prova o lock `FOR UPDATE` no MySQL (duas conexões, segunda recebe *lock wait timeout*); é pulado fora do MySQL.
