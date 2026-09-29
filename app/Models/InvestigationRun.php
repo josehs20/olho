@@ -33,7 +33,27 @@ class InvestigationRun extends Model
             'credits_reserved' => 'integer',
             'credits_consumed' => 'integer',
             'input_snapshot' => 'array',
+            'metadata' => 'array',
         ];
+    }
+
+    /**
+     * Indica se uma etapa do pipeline já foi concluída (idempotência).
+     */
+    public function pipelineStage(string $stage): bool
+    {
+        return (bool) data_get($this->metadata, "pipeline.{$stage}");
+    }
+
+    /**
+     * Marca uma etapa do pipeline como concluída.
+     */
+    public function markPipelineStage(string $stage): void
+    {
+        $metadata = $this->metadata ?? [];
+        data_set($metadata, "pipeline.{$stage}", now()->toISOString());
+        $this->metadata = $metadata;
+        $this->save();
     }
 
     public function investigation(): BelongsTo

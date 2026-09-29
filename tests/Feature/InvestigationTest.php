@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\StartInvestigationRunJob;
 use App\Models\SourceDefinition;
 use App\Models\User;
 use App\Services\InvestigationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class InvestigationTest extends TestCase
@@ -26,6 +28,8 @@ class InvestigationTest extends TestCase
 
     public function test_user_can_create_investigation(): void
     {
+        Queue::fake();
+
         $user = User::factory()->create();
         SourceDefinition::factory()->create(['slug' => 'm', 'type' => 'username']);
 
@@ -36,6 +40,7 @@ class InvestigationTest extends TestCase
 
         $response->assertRedirect();
         $this->assertDatabaseHas('investigations', ['user_id' => $user->id, 'status' => 'queued']);
+        Queue::assertPushed(StartInvestigationRunJob::class);
     }
 
     public function test_user_cannot_view_another_users_investigation(): void

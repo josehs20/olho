@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\StartInvestigationRunJob;
 use App\Models\Investigation;
 use App\Models\InvestigationRun;
 use App\Models\SourceDefinition;
@@ -13,14 +14,14 @@ class InvestigationService
 {
     /**
      * Cria uma investigação e o seu primeiro run (snapshot + módulos selecionados).
-     * Não executa fontes externas nem reserva créditos (isso é feito por jobs).
+     * O processamento é assíncrono (StartInvestigationRunJob), fora da requisição HTTP.
      */
     public function create(User $user, array $input, array $moduleSlugs, ?string $title = null): Investigation
     {
         $input = $this->sanitize($input);
         $modules = $this->resolveModules($moduleSlugs, $input);
 
-        return DB::transaction(function () use ($user, $input, $modules, $title) {
+        $investigation = DB::transaction(function () use ($user, $input, $modules, $title) {
             $investigation = Investigation::query()->create([
                 'user_id' => $user->id,
                 'title' => $title ?: ($input['username'] ?? 'Investigação'),
@@ -39,6 +40,10 @@ class InvestigationService
 
             return $investigation;
         });
+
+        StartInvestigationRunJob::dispatch($investigation->current_run_id);
+
+        return $investigation;
     }
 
     /**

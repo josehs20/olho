@@ -86,3 +86,19 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   - Cenário controlado pelo valor de entrada: `timeout` → timeout, `error` → indisponível, `empty` → vazio, senão resultados determinísticos.
 - Sem integração com ferramentas externas (Maigret/Sherlock/WhatsMyName/Holehe ficam para 10–13).
 - Testes: `SourceAdapterTest` (registry, suporte, resultados determinísticos, vazio, timeout, erro, error mapper, normalize).
+
+## Etapa 09 — Jobs e workers
+
+- 7 jobs (`app/Jobs/`, fila Redis, recebem apenas IDs):
+  - `StartInvestigationRunJob` (inicia run, reserva créditos, cria `source_runs` e despacha `ExecuteSourceJob`);
+  - `ExecuteSourceJob` (executa adapter via `SourceRegistry`, persiste resultados/evidências, mapeia erro/timeout, dispara `NormalizeSourceResultsJob` quando todas as fontes terminam);
+  - `NormalizeSourceResultsJob` (calcula `dedup_hash`);
+  - `DeduplicateResultsJob` (marca duplicados em `metadata.duplicate_of`);
+  - `BuildCorrelationJob` (score básico — expandido na etapa 16);
+  - `BuildHtmlReportJob` (cria `reports` e finaliza status do run — expandido na etapa 18);
+  - `ReleaseReservedCreditsJob` (consome/release a reserva conforme o resultado).
+- `InvestigationService::create` agora despacha `StartInvestigationRunJob` (processamento assíncrono).
+- Migration `add_metadata_to_investigation_runs` + helpers `pipelineStage()`/`markPipelineStage()` no run para **idempotência** das etapas.
+- Retry/backoff/timeout declarados por job (`$tries`, `$backoff`, `$timeout`).
+- **Uma fonte falha não cancela as demais**: cada fonte é um `source_runs`/job independente.
+- Testes: `InvestigationPipelineTest` (reserva + dispatch, idempotência, saldo insuficiente, persistência, timeout, isolamento de falha, pipeline completo) + ajustes de `Queue::fake()` nos testes de investigação.

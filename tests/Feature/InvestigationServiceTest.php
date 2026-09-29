@@ -8,6 +8,7 @@ use App\Models\SourceDefinition;
 use App\Models\User;
 use App\Services\InvestigationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class InvestigationServiceTest extends TestCase
@@ -19,6 +20,7 @@ class InvestigationServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Queue::fake();
         $this->service = app(InvestigationService::class);
     }
 
