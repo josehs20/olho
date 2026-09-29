@@ -185,3 +185,11 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - View `reports/show.blade.php` server-rendered com: cabeçalho, resumo (status/créditos/correlação), entradas, módulos, resultados (fonte/URL/timestamp/evidência), correlação, falhas/limitações e data — com **escaping** e classes `print:*` para impressão.
 - Autorização via `InvestigationPolicy` (`authorize('view', ...)`) + validação de que o run pertence à investigação (404).
 - Testes: `ReportTest` (usuário vê o próprio relatório com seções; usuário alheio recebe 403).
+
+## Etapa 19 — Dashboard do cliente
+
+- `App\Http\Controllers\DashboardController` + rota `/dashboard`.
+- View `dashboard.blade.php` com: saldo de créditos, botão "Nova investigação" + "Comprar créditos", investigações recentes (com status), créditos gastos e pagamentos recentes.
+- Estados vazios amigáveis ("Você ainda não tem investigações.", "Nenhum pagamento ainda.").
+- Página leve (Blade, sem Livewire).
+- Testes: `DashboardTest` (redirect de guest, estados vazios e dados exibidos).
