@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\CreditTransaction;
 use App\Models\Investigation;
+use App\Models\Payment;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -43,5 +46,26 @@ class PrivacyTest extends TestCase
 
         $this->assertSame('Conta excluída', $user->fresh()->name);
         $this->assertSame(0, Investigation::count());
+    }
+
+    public function test_account_deletion_preserves_financial_records(): void
+    {
+        $user = User::factory()->create();
+        $wallet = Wallet::factory()->create(['user_id' => $user->id, 'balance' => 50]);
+        CreditTransaction::factory()->create([
+            'wallet_id' => $wallet->id,
+            'user_id' => $user->id,
+            'amount' => 50,
+            'balance_before' => 0,
+            'balance_after' => 50,
+        ]);
+        Payment::factory()->create(['user_id' => $user->id]);
+
+        $this->actingAs($user)->delete('/profile', ['password' => 'password']);
+
+        $this->assertSame('Conta excluída', $user->fresh()->name);
+        $this->assertSame(1, Wallet::where('user_id', $user->id)->count());
+        $this->assertSame(1, CreditTransaction::where('user_id', $user->id)->count());
+        $this->assertSame(1, Payment::where('user_id', $user->id)->count());
     }
 }

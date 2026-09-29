@@ -185,4 +185,50 @@ class InvestigationPipelineTest extends TestCase
         // URLs distintas => não são duplicadas entre si.
         $this->assertNull($results->last()->metadata['duplicate_of'] ?? null);
     }
+
+    public function test_release_reserved_credits_releases_on_failed_run(): void
+    {
+        [$user, $wallet, , $run] = $this->createPendingRun();
+
+        $credits = app(CreditLedgerService::class);
+        $reservation = $credits->reserve($user, $wallet, 10, $run, 'res-1');
+
+        $run->status = InvestigationRun::STATUS_FAILED;
+        $run->save();
+
+        (new ReleaseReservedCreditsJob($run->id))->handle($credits);
+
+        $this->assertSame('released', $reservation->fresh()->status);
+        $this->assertSame(100, $wallet->fresh()->balance);
+    }
+
+    public function test_pipeline_with_failure_marks_run_partial(): void
+    {
+        $user = User::factory()->create();
+        Wallet::factory()->create(['user_id' => $user->id, 'balance' => 100]);
+        SourceDefinition::factory()->create(['slug' => 'mock-username', 'type' => 'username', 'cost_credits' => 5]);
+        SourceDefinition::factory()->create(['slug' => 'mock-email', 'type' => 'email', 'cost_credits' => 5]);
+
+        $investigation = Investigation::factory()->create(['user_id' => $user->id, 'status' => 'queued']);
+        $run = InvestigationRun::factory()->create([
+            'investigation_id' => $investigation->id,
+            'status' => 'pending',
+            'input_snapshot' => ['username' => 'error', 'email' => 'a@b.c', 'modules' => ['mock-username', 'mock-email']],
+        ]);
+
+        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(LogSanitizer::class));
+
+        foreach ($run->sourceRuns()->get() as $sourceRun) {
+            (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(LogSanitizer::class));
+        }
+
+        (new NormalizeSourceResultsJob($run->id))->handle(app(ResultDeduplicator::class));
+        (new DeduplicateResultsJob($run->id))->handle(app(ResultDeduplicator::class));
+        (new BuildCorrelationJob($run->id))->handle(app(CorrelationService::class));
+        (new BuildHtmlReportJob($run->id))->handle();
+        (new ReleaseReservedCreditsJob($run->id))->handle(app(CreditLedgerService::class));
+
+        $this->assertSame(InvestigationRun::STATUS_PARTIAL, $run->fresh()->status);
+        $this->assertSame(Investigation::STATUS_PARTIAL, $investigation->fresh()->status);
+    }
 }

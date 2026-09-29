@@ -237,3 +237,13 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - `App\Http\Middleware\SecurityHeaders` (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy) adicionado ao grupo `web`.
 - Rate limit em endpoints sensíveis: `POST /investigations` e `POST /credits/{package}/checkout` (`throttle:10,1`).
 - Testes de segurança: `SecurityTest` (headers, mass assignment de `is_admin`, XSS no título da investigação, busca admin segura contra SQL injection).
+
+## Etapa 25 — Suíte de testes
+
+- Cobertura dos fluxos críticos revisada: auth, créditos (+concorrência), PIX fake, investigação, jobs, adapters mock, normalização, deduplicação, correlação, relatório, admin, privacidade e segurança.
+- Lacunas preenchidas:
+  - `PrivacyTest::test_account_deletion_preserves_financial_records` (carteira/ledger/pagamentos preservados após exclusão);
+  - `InvestigationPipelineTest::test_release_reserved_credits_releases_on_failed_run` (caminho de release/refund do job);
+  - `InvestigationPipelineTest::test_pipeline_with_failure_marks_run_partial` (run/investigação ficam `partial` com fonte falha).
+- Upload inválido (cenário 13 de docs/17) permanece não aplicável: MVP não implementa uploads.
+- Suíte completa executada sem regressões.
