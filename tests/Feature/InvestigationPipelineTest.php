@@ -16,6 +16,7 @@ use App\Models\SourceRun;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\CreditLedgerService;
+use App\Services\ResultDeduplicator;
 use App\Sources\SourceRegistry;
 use App\Sources\SourceRunStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -159,8 +160,8 @@ class InvestigationPipelineTest extends TestCase
         $sourceRun = $run->sourceRuns()->first();
         (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class));
 
-        (new NormalizeSourceResultsJob($run->id))->handle();
-        (new DeduplicateResultsJob($run->id))->handle();
+        (new NormalizeSourceResultsJob($run->id))->handle(app(ResultDeduplicator::class));
+        (new DeduplicateResultsJob($run->id))->handle(app(ResultDeduplicator::class));
         (new BuildCorrelationJob($run->id))->handle();
         (new BuildHtmlReportJob($run->id))->handle();
         (new ReleaseReservedCreditsJob($run->id))->handle(app(CreditLedgerService::class));
@@ -177,6 +178,8 @@ class InvestigationPipelineTest extends TestCase
         $this->assertTrue($run->pipelineStage('credits_released_at'));
 
         $results = SourceRun::find($sourceRun->id)->sourceResults()->get();
-        $this->assertNotNull($results->last()->metadata['duplicate_of'] ?? null);
+        $this->assertCount(2, $results);
+        // URLs distintas => não são duplicadas entre si.
+        $this->assertNull($results->last()->metadata['duplicate_of'] ?? null);
     }
 }

@@ -146,3 +146,13 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   - `evidenceAttributes()` para mapear evidências.
 - `ExecuteSourceJob` refatorado para usar o normalizador (antes a lógica ficava inline).
 - Testes: `SourceResultNormalizerTest` (atributos, strip de HTML, URL, entity_type default, evidências, e normalização de **todos** os adapters registrados).
+
+## Etapa 15 — Deduplicação
+
+- `App\Services\ResultDeduplicator`: deduplicação **entre fontes**.
+  - Estratégia determinística: hash de `tipo + valor normalizado + URL canônica`.
+  - `canonicalUrl()` normaliza (minúscula, remove fragmento e barra final).
+  - Agrupa equivalentes, marca `metadata.duplicate_of` nos duplicados e persiste `metadata.dedup_sources` (quais fontes acharam o item) no representante — **sem apagar evidências**.
+- `NormalizeSourceResultsJob` usa `ResultDeduplicator::dedupHash` (hash canônico); `DeduplicateResultsJob` usa `deduplicate()`.
+- Ajuste no `InvestigationPipelineTest` (URLs distintas não são mais duplicadas entre si).
+- Testes: `ResultDeduplicatorTest` (duplicados exatos, quase duplicados, itens distintos, não apaga evidência, `canonicalUrl`).

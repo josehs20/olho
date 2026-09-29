@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\InvestigationRun;
 use App\Models\SourceResult;
+use App\Services\ResultDeduplicator;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -17,7 +18,7 @@ class NormalizeSourceResultsJob implements ShouldQueue
 
     public function __construct(public int $investigationRunId) {}
 
-    public function handle(): void
+    public function handle(ResultDeduplicator $deduplicator): void
     {
         $run = InvestigationRun::findOrFail($this->investigationRunId);
 
@@ -33,7 +34,7 @@ class NormalizeSourceResultsJob implements ShouldQueue
             ->get();
 
         foreach ($results as $result) {
-            $result->dedup_hash = hash('sha256', $result->entity_type.'|'.mb_strtolower(trim($result->value)));
+            $result->dedup_hash = $deduplicator->dedupHash($result);
             $result->save();
         }
 

@@ -3,7 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\InvestigationRun;
-use App\Models\SourceResult;
+use App\Services\ResultDeduplicator;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -17,7 +17,7 @@ class DeduplicateResultsJob implements ShouldQueue
 
     public function __construct(public int $investigationRunId) {}
 
-    public function handle(): void
+    public function handle(ResultDeduplicator $deduplicator): void
     {
         $run = InvestigationRun::findOrFail($this->investigationRunId);
 
@@ -27,26 +27,7 @@ class DeduplicateResultsJob implements ShouldQueue
             return;
         }
 
-        $results = SourceResult::query()
-            ->whereHas('sourceRun', fn ($q) => $q->where('investigation_run_id', $run->id))
-            ->whereNotNull('dedup_hash')
-            ->orderBy('id')
-            ->get();
-
-        foreach ($results->groupBy('dedup_hash') as $group) {
-            if ($group->count() < 2) {
-                continue;
-            }
-
-            $first = $group->shift();
-
-            foreach ($group as $duplicate) {
-                $metadata = $duplicate->metadata ?? [];
-                $metadata['duplicate_of'] = $first->id;
-                $duplicate->metadata = $metadata;
-                $duplicate->save();
-            }
-        }
+        $deduplicator->deduplicate($run);
 
         $run->markPipelineStage('deduplicated_at');
 
