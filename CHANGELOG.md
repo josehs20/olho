@@ -75,3 +75,14 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - UI: `/investigations` (histórico), `/investigations/create` (form + seleção de módulos), `/investigations/{id}` (detalhes/execuções), via `Route::resource`.
 - `StoreInvestigationRequest` para validação sintática; erros de domínio viram erro no campo `modules`.
 - Testes: `InvestigationServiceTest` (snapshot, sem módulo, módulo inativo, input obrigatório por tipo, isolamento de histórico) e `InvestigationTest` (render, criação, 403 para investigação alheia, redirect de guest).
+
+## Etapa 08 — Contrato de source adapters
+
+- Contrato `App\Sources\InvestigationSource` (`key`, `name`, `supports`, `execute`, `normalize`, `healthCheck`).
+- DTOs: `InvestigationInput` (com `fromArray`), `InvestigationContext`, `SourceResult`.
+- `App\Sources\SourceRegistry` (registro/filtro por `supports`), registrado como singleton no `AppServiceProvider`.
+- Enum `SourceRunStatus` (pending/running/completed/failed/timeout/skipped) + exceções (`SourceTimeoutException`, `SourceUnavailableException`, `SourceBlockedException`, `SourceInvalidInputException`) + `SourceErrorMapper` (exceção → `error_code`/status).
+- Mocks determinísticos (base `MockSource`): `MockUsernameSource` (`mock-username`), `MockEmailSource` (`mock-email`), `MockWebSource` (`mock-web`).
+  - Cenário controlado pelo valor de entrada: `timeout` → timeout, `error` → indisponível, `empty` → vazio, senão resultados determinísticos.
+- Sem integração com ferramentas externas (Maigret/Sherlock/WhatsMyName/Holehe ficam para 10–13).
+- Testes: `SourceAdapterTest` (registry, suporte, resultados determinísticos, vazio, timeout, erro, error mapper, normalize).

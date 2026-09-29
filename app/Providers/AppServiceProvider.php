@@ -7,6 +7,10 @@ use App\Models\User;
 use App\Payments\FakePixProvider;
 use App\Payments\PaymentProvider;
 use App\Policies\InvestigationPolicy;
+use App\Sources\Mocks\MockEmailSource;
+use App\Sources\Mocks\MockUsernameSource;
+use App\Sources\Mocks\MockWebSource;
+use App\Sources\SourceRegistry;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -22,6 +26,14 @@ class AppServiceProvider extends ServiceProvider
                 'fake' => new FakePixProvider,
                 default => throw new \RuntimeException('Payment provider não suportado: '.config('payments.provider')),
             };
+        });
+
+        $this->app->singleton(SourceRegistry::class, function () {
+            return new SourceRegistry([
+                new MockUsernameSource,
+                new MockEmailSource,
+                new MockWebSource,
+            ]);
         });
     }
 
