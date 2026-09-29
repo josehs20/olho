@@ -102,3 +102,12 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - Retry/backoff/timeout declarados por job (`$tries`, `$backoff`, `$timeout`).
 - **Uma fonte falha não cancela as demais**: cada fonte é um `source_runs`/job independente.
 - Testes: `InvestigationPipelineTest` (reserva + dispatch, idempotência, saldo insuficiente, persistência, timeout, isolamento de falha, pipeline completo) + ajustes de `Queue::fake()` nos testes de investigação.
+
+## Etapa 10 — Maigret mock
+
+- `App\Sources\Adapters\MaigretMockAdapter` (key `maigret`), seguindo `InvestigationSource`.
+  - Aceita `username`; fixtures determinísticas (GitHub/Instagram/Reddit).
+  - Cenários: `found` (default) → resultados; `not_found` → vazio; `timeout` → `SourceTimeoutException`; `error` → `SourceUnavailableException`.
+  - Sem acesso à internet.
+- Registrado no `SourceRegistry` (AppServiceProvider).
+- Testes: `MaigretMockAdapterTest` (key, suporte, found/not_found/timeout/error, normalização, registro).
