@@ -254,3 +254,9 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - Tarefa agendada real adicionada em `routes/console.php`: `credits:release-expired` (compensa reservas vencidas) a cada 5 minutos.
 - Validação do ciclo completo: build limpo ✓, stack sobe do zero ✓, migrations ✓, Redis (`PONG`) ✓, scheduler (`schedule:list`) ✓, worker processa job ✓.
 - Nenhum segredo embutido (placeholders `CONFIGURE_ME` no `.env.example`).
+
+## Etapa 27 — Auditoria final do MVP
+
+- Auditoria integral registrada em `AUDIT.md` (classificação por requisito, pendências e próximos passos).
+- Estado final: 165 testes passando, Pint PASS, 56 rotas, 27 commits, migrations aplicadas.
+- Pendências principais: RF-17 (reexecução), purga por retenção, landing page, uploads (fora do MVP), `entities`/`entity_identifiers`.
