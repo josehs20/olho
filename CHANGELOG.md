@@ -178,3 +178,10 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - UI de `/investigations/{id}` agora exibe fonte, URL, timestamp, método (tipo de evidência) e status por fonte, com **escaping** (Blade `{{ }}`, sem `{!! !!}`).
 - `InvestigationController::show()` faz eager load de `sourceRuns/sourceDefinition/sourceResults/evidence`.
 - Testes: `SourceRunDisplayStatusTest` (5 estados) e `EvidenceEscapingTest` (título com `<script>` é escapado).
+
+## Etapa 18 — Relatório HTML
+
+- `App\Http\Controllers\ReportController@show` + rota `investigations.report` (`/investigations/{investigation}/runs/{run}/report`).
+- View `reports/show.blade.php` server-rendered com: cabeçalho, resumo (status/créditos/correlação), entradas, módulos, resultados (fonte/URL/timestamp/evidência), correlação, falhas/limitações e data — com **escaping** e classes `print:*` para impressão.
+- Autorização via `InvestigationPolicy` (`authorize('view', ...)`) + validação de que o run pertence à investigação (404).
+- Testes: `ReportTest` (usuário vê o próprio relatório com seções; usuário alheio recebe 403).

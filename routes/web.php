@@ -3,6 +3,7 @@
 use App\Http\Controllers\InvestigationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -32,6 +33,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/payments/{payment}/simulate', [PaymentController::class, 'simulate'])->name('payments.simulate');
 
     Route::resource('investigations', InvestigationController::class)->only(['index', 'create', 'store', 'show']);
+
+    Route::get('/investigations/{investigation}/runs/{run}/report', [ReportController::class, 'show'])->name('investigations.report');
 });
 
 Route::post('/payments/webhook', [PaymentController::class, 'webhook'])->name('payments.webhook');
