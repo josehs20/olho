@@ -55,3 +55,13 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   - `releaseExpiredReservations` compensa reservas vencidas (idempotente por reserva).
 - Testes: `CreditLedgerServiceTest` (12 cenários: saldo, reserva, consumo, liberação, saldo insuficiente, ajuste sem motivo, idempotência, estado inválido, expiração, invariante `balance = Σ ledger`).
 - **Concorrência**: `CreditConcurrencyTest` prova o lock `FOR UPDATE` no MySQL (duas conexões, segunda recebe *lock wait timeout*); é pulado fora do MySQL.
+
+## Etapa 06 — Pagamento PIX abstrato
+
+- Contrato `App\Payments\PaymentProvider` (`createCharge`, `getStatus`, `validateWebhook`) + value objects `PixCharge`, `VerifiedPaymentEvent` e enum `PaymentStatus`.
+- `App\Payments\FakePixProvider`: cobrança fake (payload `FAKE_PIX|...` com placeholders, sem chave real) e webhook sem assinatura; fluxo 100% sem internet.
+- `App\Services\PaymentService`: `checkout` (pedido → cobrança → `awaiting_payment`), `status`, `handleWebhook`, `simulatePayment`, `confirmPayment` (idempotente) e `grantCredits` (usa `CreditLedgerService::purchase` com chave `payment-paid-{id}`).
+- Binding do provider por config em `AppServiceProvider`; `config/payments.php` lê `PAYMENT_PROVIDER`/`PIX_*` (placeholders).
+- UI: lista de pacotes (`/credits`), página de pedido com PIX copia-e-cola e botão "Simular pagamento" (fake); rotas `payments.*` + webhook `/payments/webhook` (isento de CSRF).
+- **Idempotência**: `payment_events.external_event_id` único (dedup), `payments.external_id` único, e concessão de créditos idempotente por pagamento.
+- Testes: `PaymentServiceTest` (checkout, pacote inativo, webhook pago concede créditos uma única vez, evento diferente não duplica, webhook inválido, simulação).
