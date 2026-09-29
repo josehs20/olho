@@ -38,4 +38,30 @@ class SourceRun extends Model
     {
         return $this->hasMany(SourceResult::class);
     }
+
+    /**
+     * Status de exibição da fonte (docs/10-resultados-evidencias.md).
+     */
+    public function displayStatus(): string
+    {
+        return match ($this->status) {
+            'failed', 'timeout' => 'fonte indisponível',
+            'pending', 'running', 'skipped' => 'não pesquisado',
+            'completed' => $this->completedDisplayStatus(),
+            default => 'não pesquisado',
+        };
+    }
+
+    private function completedDisplayStatus(): string
+    {
+        if ($this->sourceResults->isEmpty()) {
+            return 'sem resultado';
+        }
+
+        $strong = $this->sourceResults->contains(
+            fn ($result) => (float) ($result->confidence ?? 0) >= 0.7,
+        );
+
+        return $strong ? 'encontrado' : 'possível correspondência';
+    }
 }

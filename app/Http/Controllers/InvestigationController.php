@@ -51,7 +51,10 @@ class InvestigationController extends Controller
     {
         $this->authorize('view', $investigation);
 
-        $investigation->load('runs');
+        $investigation->load([
+            'runs.sourceRuns.sourceDefinition',
+            'runs.sourceRuns.sourceResults.evidence',
+        ]);
 
         return view('investigations.show', compact('investigation'));
     }

@@ -42,6 +42,35 @@
                         @endforeach
                     </dl>
 
+                    <h3 class="mt-6 text-lg font-semibold text-gray-900">{{ __('Resultados') }}</h3>
+                    @foreach ($investigation->runs as $run)
+                        @foreach ($run->sourceRuns as $sourceRun)
+                            <div class="mt-4 border-t border-gray-100 pt-4">
+                                <div class="flex items-center justify-between">
+                                    <p class="font-medium text-gray-900">{{ $sourceRun->sourceDefinition?->name ?? $sourceRun->source_definition_id }}</p>
+                                    <span class="text-sm text-gray-500">{{ $sourceRun->displayStatus() }}</span>
+                                </div>
+
+                                @foreach ($sourceRun->sourceResults as $result)
+                                    <div class="mt-3 rounded-md bg-gray-50 p-3">
+                                        <p class="font-medium text-gray-900">{{ $result->title ?? $result->value }}</p>
+                                        @if ($result->url)
+                                            <a href="{{ $result->url }}" target="_blank" rel="noopener noreferrer" class="break-all text-sm text-indigo-600 hover:underline">{{ $result->url }}</a>
+                                        @endif
+                                        <p class="mt-1 text-xs text-gray-500">{{ $result->observed_at?->format('d/m/Y H:i') }}</p>
+                                        <div class="mt-2 flex flex-wrap gap-1">
+                                            @foreach ($result->evidence as $evidence)
+                                                <span class="rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-700">
+                                                    {{ $evidence->type }}: {{ $evidence->value }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endforeach
+                    @endforeach
+
                     <a href="{{ route('investigations.index') }}" class="mt-6 inline-block text-sm text-gray-600 hover:text-gray-900">
                         &larr; {{ __('Voltar') }}
                     </a>

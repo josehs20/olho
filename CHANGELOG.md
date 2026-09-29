@@ -166,3 +166,15 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   - Sem IA; sem afirmar identidade.
 - `BuildCorrelationJob` refatorado para usar o serviço.
 - Testes: `CorrelationServiceTest` (username, nome, e-mail, localização, determinismo com mesmos inputs, persistência).
+
+## Etapa 17 — Evidências e fontes
+
+- `SourceRun::displayStatus()` classifica a fonte para exibição:
+  - `encontrado` (completed + resultado com confiança ≥ 0.7);
+  - `possível correspondência` (completed + confiança baixa);
+  - `sem resultado` (completed sem resultados);
+  - `fonte indisponível` (failed/timeout);
+  - `não pesquisado` (pending/running/skipped).
+- UI de `/investigations/{id}` agora exibe fonte, URL, timestamp, método (tipo de evidência) e status por fonte, com **escaping** (Blade `{{ }}`, sem `{!! !!}`).
+- `InvestigationController::show()` faz eager load de `sourceRuns/sourceDefinition/sourceResults/evidence`.
+- Testes: `SourceRunDisplayStatusTest` (5 estados) e `EvidenceEscapingTest` (título com `<script>` é escapado).
