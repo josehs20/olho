@@ -247,3 +247,10 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   - `InvestigationPipelineTest::test_pipeline_with_failure_marks_run_partial` (run/investigação ficam `partial` com fonte falha).
 - Upload inválido (cenário 13 de docs/17) permanece não aplicável: MVP não implementa uploads.
 - Suíte completa executada sem regressões.
+
+## Etapa 26 — Docker e operação
+
+- `README.md` substituído por documentação do projeto (como rodar, serviços, comandos úteis e regras de segurança).
+- Tarefa agendada real adicionada em `routes/console.php`: `credits:release-expired` (compensa reservas vencidas) a cada 5 minutos.
+- Validação do ciclo completo: build limpo ✓, stack sobe do zero ✓, migrations ✓, Redis (`PONG`) ✓, scheduler (`schedule:list`) ✓, worker processa job ✓.
+- Nenhum segredo embutido (placeholders `CONFIGURE_ME` no `.env.example`).

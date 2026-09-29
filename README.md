@@ -1,58 +1,68 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Investigação Pública
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Plataforma Laravel de investigação de **presença digital pública** (OSINT). O usuário compra créditos e os usa para executar módulos de pesquisa sobre informações públicas. Resultados apontam para fontes/evidências; uma correspondência não é identidade confirmada.
 
-## About Laravel
+## Stack
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Laravel 13 · PHP 8.5 (Docker)
+- Breeze (Blade/Tailwind) · MySQL 8.4 · Redis (cache + filas)
+- Workers Docker · PIX fake (`FakePixProvider`) · OSINT com mocks no MVP
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Requisitos
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- Docker + Docker Compose
 
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Como rodar (desenvolvimento)
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+cp .env.example .env            # preencha segredos se necessário (placeholders CONFIGURE_ME)
+docker compose up -d --build    # sobe app, web, worker, scheduler, mysql, redis
+docker compose exec app php artisan key:generate
+docker compose exec app php artisan migrate --force
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+App em `http://localhost:8080` (porta configurável via `APP_PORT`). Healthcheck em `/up`.
 
-## Contributing
+## Serviços
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+| Serviço | Descrição |
+|---|---|
+| `app` | PHP-FPM (Laravel) |
+| `web` | Nginx |
+| `worker` | `queue:work redis` |
+| `scheduler` | `schedule:work` |
+| `mysql` | Banco de dados |
+| `redis` | Cache + filas |
 
-## Code of Conduct
+## Comandos úteis
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+# Testes e qualidade
+docker compose exec app php artisan test
+docker compose exec app ./vendor/bin/pint --test
 
-## Security Vulnerabilities
+# Banco
+docker compose exec app php artisan migrate --force
+docker compose exec app php artisan migrate:status
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+# Fila (worker já roda em background)
+docker compose exec app php artisan queue:work --once
 
-## License
+# Admin inicial
+docker compose exec app php artisan app:create-admin --email=admin@example.com --password='senha-forte'
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+# Saúde
+docker compose ps
+docker compose exec redis redis-cli ping
+```
+
+## Regras de segurança
+
+- Nunca commitar segredos (chave PIX, senha, token, API key) — use `CONFIGURE_ME`.
+- Créditos com ledger imutável, saldo nunca negativo, transação + lock e idempotência.
+- OSINT apenas com fontes públicas; mocks no MVP (sem contornar auth/CAPTCHA/paywall).
+
+## Especificação
+
+Documentos e prompts em `prompts/investigacao-osint-prompts/`; regras em `.cursor/rules/*.mdc`; histórico de decisões em `CHANGELOG.md`.
+
