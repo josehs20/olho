@@ -119,3 +119,11 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   - Cenários: default → múltiplos perfis; `not_found` → vazio; `timeout` → `SourceTimeoutException`; `error` → `SourceUnavailableException` (mensagem sanitizada).
 - Registrado no `SourceRegistry`.
 - Testes: `SherlockMockAdapterTest` (key, suporte, múltiplos perfis, not_found/timeout/erro sanitizado, normalização, registro).
+
+## Etapa 12 — WhatsMyName mock
+
+- `App\Sources\Adapters\WhatsMyNameMockAdapter` (key `whatsmyname`).
+  - Aceita `username`; múltiplos itens determinísticos (github/gitlab/bitbucket/codeberg/sourcehut) com `metadata.site` para permitir testar deduplicação.
+  - Cenários: default → múltiplos itens; `not_found` → vazio; `timeout` → `SourceTimeoutException`; `error` → `SourceUnavailableException`.
+- Registrado no `SourceRegistry`.
+- Testes: `WhatsMyNameMockAdapterTest` (key, suporte, múltiplos itens, not_found/timeout/error, normalização, registro).
