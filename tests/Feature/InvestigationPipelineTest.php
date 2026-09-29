@@ -18,6 +18,7 @@ use App\Models\Wallet;
 use App\Services\CorrelationService;
 use App\Services\CreditLedgerService;
 use App\Services\ResultDeduplicator;
+use App\Services\SourceCache;
 use App\Sources\SourceRegistry;
 use App\Sources\SourceRunStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -106,7 +107,7 @@ class InvestigationPipelineTest extends TestCase
 
         $sourceRun = $run->sourceRuns()->first();
 
-        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class));
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class));
 
         $sourceRun->refresh();
         $this->assertSame(SourceRunStatus::Completed->value, $sourceRun->status);
@@ -121,7 +122,7 @@ class InvestigationPipelineTest extends TestCase
 
         $sourceRun = $run->sourceRuns()->first();
 
-        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class));
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class));
 
         $sourceRun->refresh();
         $this->assertSame(SourceRunStatus::Timeout->value, $sourceRun->status);
@@ -145,7 +146,7 @@ class InvestigationPipelineTest extends TestCase
         (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class));
 
         foreach ($run->sourceRuns()->get() as $sourceRun) {
-            (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class));
+            (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class));
         }
 
         $this->assertSame(SourceRunStatus::Failed->value, $run->sourceRuns()->where('source_definition_id', $usernameSource->id)->first()->status);
@@ -159,7 +160,7 @@ class InvestigationPipelineTest extends TestCase
         (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class));
 
         $sourceRun = $run->sourceRuns()->first();
-        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class));
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class));
 
         (new NormalizeSourceResultsJob($run->id))->handle(app(ResultDeduplicator::class));
         (new DeduplicateResultsJob($run->id))->handle(app(ResultDeduplicator::class));

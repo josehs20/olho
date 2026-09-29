@@ -31,6 +31,11 @@ final class WhatsMyNameMockAdapter implements InvestigationSource
         return 'WhatsMyName';
     }
 
+    public function version(): string
+    {
+        return 'v1';
+    }
+
     public function supports(InvestigationInput $input): bool
     {
         return $input->username !== null;

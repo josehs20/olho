@@ -31,6 +31,11 @@ final class HoleheMockAdapter implements InvestigationSource
         return 'Holehe';
     }
 
+    public function version(): string
+    {
+        return 'v1';
+    }
+
     public function supports(InvestigationInput $input): bool
     {
         return $input->email !== null;

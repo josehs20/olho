@@ -202,3 +202,13 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - Controllers em `App\Http\Controllers\Admin\` + views `admin/*` com nav parcial.
 - `AdminCreditAdjustmentRequest` (amount ≠ 0 + reason obrigatório).
 - Testes: `AdminTest` (403 para não-admin, dashboard, ajuste de créditos com motivo + audit, motivo obrigatório, CRUD de pacote).
+
+## Etapa 21 — Cache e idempotência operacional
+
+- `InvestigationSource::version()` (participa da chave de cache); adapters retornam `v1`.
+- `App\Services\SourceCache`: cache de resultado de fonte com chave `source:{key}:{version}:{hash de entrada}` e TTL (`config/source_cache.php`).
+  - Não inclui usuário: os dados são públicos por entrada; o hash de entrada garante que nunca se retorne o resultado de outra entrada.
+- `ExecuteSourceJob` usa o cache ao executar o adapter (erros/timeout não são cacheados, pois lançam exceção).
+- Idempotência extra: `ExecuteSourceJob` e `StartInvestigationRunJob` implementam `ShouldBeUnique` (`uniqueId` por sourceRun/run).
+- Webhooks já idempotentes via `payment_events.external_event_id`.
+- Testes: `SourceCacheTest` (chave com source/versão/hash, remember, entrada diferente → chave diferente, serialização de `SourceResult` DTOs).

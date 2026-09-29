@@ -30,6 +30,11 @@ final class MaigretMockAdapter implements InvestigationSource
         return 'Maigret';
     }
 
+    public function version(): string
+    {
+        return 'v1';
+    }
+
     public function supports(InvestigationInput $input): bool
     {
         return $input->username !== null;

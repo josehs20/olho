@@ -30,6 +30,11 @@ final class SherlockMockAdapter implements InvestigationSource
         return 'Sherlock';
     }
 
+    public function version(): string
+    {
+        return 'v1';
+    }
+
     public function supports(InvestigationInput $input): bool
     {
         return $input->username !== null;

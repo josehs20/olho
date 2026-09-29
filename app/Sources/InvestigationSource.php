@@ -15,6 +15,11 @@ interface InvestigationSource
     public function name(): string;
 
     /**
+     * Versão do adapter (participa da chave de cache).
+     */
+    public function version(): string;
+
+    /**
      * Indica se a fonte consegue processar a entrada fornecida.
      */
     public function supports(InvestigationInput $input): bool;

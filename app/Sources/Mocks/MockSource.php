@@ -27,6 +27,11 @@ abstract class MockSource implements InvestigationSource
 
     abstract public function name(): string;
 
+    public function version(): string
+    {
+        return 'v1';
+    }
+
     abstract public function supports(InvestigationInput $input): bool;
 
     public function execute(InvestigationContext $context): array

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\SourceDefinition;
 use App\Models\SourceRun;
+use App\Services\SourceCache;
 use App\Services\SourceResultNormalizer;
 use App\Sources\Exceptions\SourceException;
 use App\Sources\InvestigationContext;
@@ -12,10 +13,11 @@ use App\Sources\SourceErrorMapper;
 use App\Sources\SourceRegistry;
 use App\Sources\SourceResult;
 use App\Sources\SourceRunStatus;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
-class ExecuteSourceJob implements ShouldQueue
+class ExecuteSourceJob implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
@@ -27,7 +29,12 @@ class ExecuteSourceJob implements ShouldQueue
 
     public function __construct(public int $sourceRunId) {}
 
-    public function handle(SourceRegistry $registry): void
+    public function uniqueId(): string
+    {
+        return 'execute-source-'.$this->sourceRunId;
+    }
+
+    public function handle(SourceRegistry $registry, SourceCache $cache): void
     {
         $sourceRun = SourceRun::findOrFail($this->sourceRunId);
 
@@ -50,7 +57,7 @@ class ExecuteSourceJob implements ShouldQueue
             $input = InvestigationInput::fromArray($run->input_snapshot ?? []);
             $context = new InvestigationContext($input, $run->id, $sourceRun->id);
 
-            $results = $adapter->execute($context);
+            $results = $cache->remember($adapter, $input, fn () => $adapter->execute($context));
 
             foreach ($results as $result) {
                 $this->persistResult($sourceRun, $definition, $result);

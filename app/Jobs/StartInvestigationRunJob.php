@@ -9,10 +9,11 @@ use App\Models\SourceDefinition;
 use App\Models\Wallet;
 use App\Services\CreditLedgerService;
 use App\Sources\SourceRunStatus;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
-class StartInvestigationRunJob implements ShouldQueue
+class StartInvestigationRunJob implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
@@ -23,6 +24,11 @@ class StartInvestigationRunJob implements ShouldQueue
     public int $timeout = 120;
 
     public function __construct(public int $investigationRunId) {}
+
+    public function uniqueId(): string
+    {
+        return 'start-run-'.$this->investigationRunId;
+    }
 
     public function handle(CreditLedgerService $credits): void
     {
