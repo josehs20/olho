@@ -193,3 +193,12 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - Estados vazios amigáveis ("Você ainda não tem investigações.", "Nenhum pagamento ainda.").
 - Página leve (Blade, sem Livewire).
 - Testes: `DashboardTest` (redirect de guest, estados vazios e dados exibidos).
+
+## Etapa 20 — Painel administrativo
+
+- Painel admin simples (sem pacote externo), sob `admin` middleware (`/admin`, `admin.*`).
+- Seções: dashboard (usuários/investigações/pagamentos/créditos vendidos/fontes com erro), usuários (busca + **ajuste de créditos com motivo obrigatório + audit log**), pacotes (CRUD), pagamentos, investigações (lista + detalhe com source runs/erros), fontes (ativar/desativar) e auditoria.
+- `App\Services\AuditLogger` (`log(actor, action, subject, metadata, ip)`).
+- Controllers em `App\Http\Controllers\Admin\` + views `admin/*` com nav parcial.
+- `AdminCreditAdjustmentRequest` (amount ≠ 0 + reason obrigatório).
+- Testes: `AdminTest` (403 para não-admin, dashboard, ajuste de créditos com motivo + audit, motivo obrigatório, CRUD de pacote).

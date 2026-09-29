@@ -1,5 +1,12 @@
 <?php
 
+use App\Http\Controllers\Admin\AuditController as AdminAuditController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\InvestigationController as AdminInvestigationController;
+use App\Http\Controllers\Admin\PackageController as AdminPackageController;
+use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
+use App\Http\Controllers\Admin\SourceController as AdminSourceController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InvestigationController;
 use App\Http\Controllers\PaymentController;
@@ -20,9 +27,22 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/', function () {
-        return view('admin.dashboard');
-    })->name('dashboard');
+    Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+
+    Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
+    Route::post('/users/{user}/credits', [AdminUserController::class, 'adjustCredits'])->name('users.adjust-credits');
+
+    Route::resource('packages', AdminPackageController::class)->except(['show']);
+
+    Route::get('/payments', [AdminPaymentController::class, 'index'])->name('payments.index');
+
+    Route::get('/investigations', [AdminInvestigationController::class, 'index'])->name('investigations.index');
+    Route::get('/investigations/{investigation}', [AdminInvestigationController::class, 'show'])->name('investigations.show');
+
+    Route::get('/sources', [AdminSourceController::class, 'index'])->name('sources.index');
+    Route::post('/sources/{source}/toggle', [AdminSourceController::class, 'toggle'])->name('sources.toggle');
+
+    Route::get('/audit', [AdminAuditController::class, 'index'])->name('audit.index');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
