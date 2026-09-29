@@ -1,0 +1,20 @@
+---
+description: Contexto e decisões-base do projeto
+alwaysApply: true
+---
+# Projeto — Investigação Pública
+
+Plataforma Laravel de investigação de presença digital **pública**. Vende créditos; cada módulo de pesquisa tem custo em créditos.
+
+## Stack (MVP)
+- Laravel 13, PHP 8.5 (Docker), Breeze (Blade/Tailwind), Livewire só quando houver benefício real.
+- MySQL 8.4, Redis (cache + filas), workers Docker independentes.
+- Pagamento PIX via adapter `FakePixProvider` (sem chave real).
+- Provedores OSINT: **mocks** no MVP (Maigret, Sherlock, WhatsMyName, Holehe).
+
+## Princípios inegociáveis
+- Evidência antes de conclusão; correspondência possível não é identidade confirmada.
+- Todo resultado aponta para fonte + timestamp.
+- Falha de uma fonte não derruba a investigação inteira.
+- Pagamento confirmado por webhook/validação do provedor, nunca pelo retorno do navegador.
+- Segredos apenas em `.env`/secret manager; nunca em código, migrations, testes ou Git.

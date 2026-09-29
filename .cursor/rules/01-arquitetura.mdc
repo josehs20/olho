@@ -1,0 +1,23 @@
+---
+description: Arquitetura em camadas e contratos
+alwaysApply: true
+---
+# Arquitetura
+
+Monólito modular Laravel + workers assíncronos. Sem microserviços no MVP.
+
+Camadas:
+`HTTP/UI -> Actions/Controllers/Livewire -> Application Services -> Domain -> Infrastructure adapters -> Queue -> Storage/DB/Redis`
+
+- Domain: regras puras (investigação, créditos, pagamentos, resultados, correlação).
+- Application: casos de uso (criar investigação, reservar créditos, iniciar run, gerar relatório).
+- Infrastructure: banco, Redis, arquivos, APIs externas, processos OSINT.
+- Presentation: Blade, Livewire, rotas/controllers mínimos.
+
+## Adapters
+Cada ferramenta externa implementa `InvestigationSource` (`key`, `name`, `supports`, `execute`, `normalize`). Controller nunca acessa a ferramenta diretamente.
+
+## Jobs
+`StartInvestigationRunJob`, `ExecuteSourceJob`, `NormalizeSourceResultsJob`, `DeduplicateResultsJob`, `BuildCorrelationJob`, `BuildHtmlReportJob`, `ReleaseReservedCreditsJob`.
+
+Jobs recebem apenas IDs/referências seguras; idempotência por `run_id + source_id`. Uma fonte falha não cancela fontes independentes.

@@ -1,0 +1,20 @@
+---
+description: Regras Laravel, Blade, Livewire e backend
+alwaysApply: true
+---
+
+# Laravel
+
+- Usar Laravel 13.x.
+- Compatibilidade com PHP 8.3–8.5 deve ser respeitada; Docker usa a versão configurada no projeto.
+- Seguir convenções Laravel antes de criar abstrações próprias.
+- Controllers devem ser finos.
+- Regras complexas vão para Actions/Services/Domain.
+- Usar Form Requests para validação complexa.
+- Policies/Gates para autorização.
+- Jobs para tarefas demoradas.
+- Events/listeners somente quando trouxerem benefício real.
+- Blade deve ser o padrão de renderização.
+- Livewire somente para interações úteis.
+- Não criar SPA.
+- Evitar JS quando HTML server-side resolve.

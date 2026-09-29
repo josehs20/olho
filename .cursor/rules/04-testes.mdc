@@ -1,0 +1,14 @@
+---
+description: Estratégia de testes e qualidade
+alwaysApply: true
+---
+# Testes
+
+Pirâmide:
+- Unit: regras de crédito, cálculo de preço, estados, normalizadores, deduplicação, correlação, validação de adapters.
+- Feature: cadastro/login, compra de pacote, pagamento fake, webhook fake, criação de investigação, fila, autorização de relatório, admin.
+- Integration: MySQL, Redis queue, storage, adapters mock.
+
+Cenários obrigatórios: saldo insuficiente; débito concorrente; webhook duplicado; pagamento confirmado duas vezes; job retry; source timeout/erro/sem resultados; resultado duplicado entre fontes; usuário abrindo investigação alheia; ajuste de crédito sem motivo; input malformado; upload inválido; HTML malicioso vindo da fonte.
+
+Ao final de cada etapa: `php artisan test` e `./vendor/bin/pint --test`.

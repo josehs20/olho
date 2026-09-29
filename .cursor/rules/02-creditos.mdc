@@ -1,0 +1,12 @@
+---
+description: Regras do subsistema de créditos
+alwaysApply: true
+---
+# Créditos
+
+- Saldo calculado pelo ledger + ajustes compensatórios; nunca mutação silenciosa de `wallet.balance`.
+- Débitos atômicos com transação + lock na carteira. Saldo nunca negativo.
+- Reserva com expiração/compensação em falha definitiva.
+- Idempotency key em toda operação de crédito/pagamento.
+- Ajuste administrativo exige motivo obrigatório.
+- Valores monetários em centavos inteiros; timestamps em UTC.

@@ -1,0 +1,25 @@
+---
+description: Segurança e privacidade
+alwaysApply: true
+---
+
+# Segurança
+
+Nunca:
+
+- concatenar input de usuário em shell;
+- aceitar comandos arbitrários;
+- acessar contas privadas;
+- contornar CAPTCHA/auth/rate limit;
+- armazenar credenciais ou cookies;
+- registrar secrets.
+
+Sempre:
+
+- validar input;
+- escapar conteúdo externo;
+- autorizar acesso a recursos por usuário;
+- proteger uploads;
+- validar webhooks;
+- aplicar rate limits;
+- sanitizar logs.

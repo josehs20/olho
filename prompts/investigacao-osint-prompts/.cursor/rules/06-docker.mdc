@@ -1,0 +1,13 @@
+---
+description: Docker e execução local
+alwaysApply: true
+---
+
+# Docker
+
+- Web, worker, MySQL e Redis são serviços separados no compose.
+- Workers não devem executar como parte da requisição web.
+- Healthchecks para serviços essenciais.
+- Segredos em `.env`/secret manager.
+- Não instalar pacotes desnecessários.
+- Preferir imagens oficiais e builds reproduzíveis.

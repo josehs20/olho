@@ -1,0 +1,31 @@
+---
+description: Como executar tarefas com Cline + DeepSeek
+alwaysApply: true
+---
+
+# Processo de execução para Cline
+
+Você está executando uma etapa incremental.
+
+Antes de editar:
+1. inspecione arquivos relevantes;
+2. compare a implementação atual com os documentos;
+3. identifique o menor conjunto de arquivos necessário;
+4. não recrie arquivos que já estejam corretos.
+
+Durante:
+- implemente somente o escopo da etapa;
+- preserve APIs internas já usadas;
+- evite refatorações não relacionadas;
+- crie testes junto com o comportamento.
+
+Depois:
+- execute testes;
+- execute lint/formatador disponível;
+- valide migrations/configuração quando aplicável;
+- resuma arquivos alterados, testes executados e pendências.
+
+Se houver ambiguidade:
+- prefira a interpretação mais conservadora que preserve os requisitos;
+- documente a decisão no comentário/CHANGELOG da etapa quando necessário;
+- não invente credenciais ou URLs.

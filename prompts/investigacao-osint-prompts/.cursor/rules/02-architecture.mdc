@@ -1,0 +1,21 @@
+---
+description: Arquitetura modular e source adapters
+alwaysApply: true
+---
+
+# Arquitetura
+
+Separar:
+
+- Domain
+- Application
+- Infrastructure
+- Presentation
+
+Fontes externas só podem ser acessadas por adapters.
+
+Nunca chamar Maigret/Sherlock/Holehe diretamente de controller, Blade ou model.
+
+Cada adapter precisa possuir contrato, normalizador e tratamento explícito de timeout/erro.
+
+Não acoplar tabelas de negócio ao formato JSON de uma ferramenta externa.

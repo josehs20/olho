@@ -1,0 +1,18 @@
+---
+description: Testes e qualidade
+alwaysApply: true
+---
+
+# Testes
+
+Toda funcionalidade nova relevante deve possuir testes.
+
+Após alterações:
+
+1. rodar testes focados;
+2. rodar suíte relacionada;
+3. rodar lint/formatador;
+4. corrigir regressões introduzidas;
+5. registrar bloqueios reais.
+
+Módulos externos devem usar mocks determinísticos no MVP.

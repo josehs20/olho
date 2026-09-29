@@ -1,0 +1,26 @@
+---
+description: Ferramentas de pesquisa de fontes públicas
+alwaysApply: true
+---
+
+# OSINT sources
+
+O produto consulta somente informação pública ou informação fornecida pelo próprio usuário.
+
+Ferramentas planejadas:
+- Maigret
+- Sherlock
+- WhatsMyName
+- Holehe
+
+Na Fase 1, usar mocks.
+
+Antes de integrar ferramenta real:
+- verificar versão atual;
+- verificar licença;
+- verificar dependências;
+- verificar limites/termos das fontes consultadas;
+- mapear formato de saída;
+- criar adapter e testes.
+
+Não implementar bypass de autenticação, CAPTCHA, paywall ou controles de acesso.

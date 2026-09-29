@@ -1,0 +1,16 @@
+---
+description: Banco, migrations, concorrência e ledger
+alwaysApply: true
+---
+
+# Banco
+
+- MySQL como banco principal.
+- Valores monetários em centavos inteiros.
+- Timestamps em UTC.
+- Foreign keys e índices apropriados.
+- Ledger de créditos tratado como histórico auditável.
+- Débitos/créditos usam transações.
+- Carteira deve ser protegida contra condição de corrida.
+- Webhooks e operações financeiras devem ser idempotentes.
+- Não excluir histórico financeiro silenciosamente.

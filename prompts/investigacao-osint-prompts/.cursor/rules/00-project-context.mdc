@@ -1,0 +1,21 @@
+---
+alwaysApply: true
+---
+
+# Contexto do projeto
+
+Este é um monólito Laravel modular para investigação de presença digital com fontes públicas.
+
+Leia primeiro `docs/00-visao-geral.md`, `docs/01-requisitos.md` e o documento específico da tarefa.
+
+Regras permanentes:
+
+- não reescrever arquitetura inteira sem necessidade;
+- não instalar dependências sem justificativa;
+- não mudar stack definida sem verificar impacto;
+- preferir soluções simples e nativas do Laravel;
+- manter o produto leve;
+- escrever testes para comportamento novo;
+- não usar dados privados ou burlar controles de acesso;
+- não integrar IA no produto sem requisito explícito;
+- não colocar segredos em código.

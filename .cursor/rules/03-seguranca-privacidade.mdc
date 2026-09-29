@@ -1,0 +1,15 @@
+---
+description: Segurança e privacidade (LGPD)
+alwaysApply: true
+---
+# Segurança e privacidade
+
+Proibido implementar mecanismos para: burlar autenticação/CAPTCHA/paywall, acessar perfis privados, coletar cookies/tokens de sessão, rastreamento em tempo real, interceptação de mensagens, vender credenciais.
+
+- SQL sempre parametrizado (Eloquent/query builder). Nunca concatenar input de usuário.
+- Nunca concatenar input de usuário em `shell_exec`/`exec`/`proc_open`; processos externos recebem flags por lista fixa.
+- Uploads: validar MIME real, tamanho, extensão controlada, nome interno aleatório, fora de diretório executável, impedir path traversal.
+- Webhooks: validar assinatura, timestamp/replay e idempotência; nunca confiar no frontend.
+- Nunca logar senha, token, cookie, chave PIX real, API key ou dados pessoais desnecessários.
+- Relatório: escapar todo conteúdo externo; autorização por policy + URL não previsível.
+- Rotas administrativas exigem middleware/policy; admin nunca é criado por formulário público.
