@@ -28,3 +28,17 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - Rota placeholder `/admin` (painel real na etapa 20).
 - **Decisão**: `is_admin` não entra em `$fillable` (impede escalonamento via formulário de registro); o comando e a factory usam `forceFill`/atribuição direta.
 - Testes: verificação de e-mail (redirect de usuário não verificado), registro (validação de confirmação/e-mail duplicado), throttle de login e acesso admin (403/200/redirect guest).
+
+## Etapa 04 — Banco de dados do domínio
+
+- Criadas 14 tabelas: `credit_packages`, `wallets`, `credit_transactions`, `investigations`, `investigation_runs`, `credit_reservations`, `payments`, `payment_events`, `source_definitions`, `source_runs`, `source_results`, `evidence`, `reports`, `audit_logs` (+ models, relações e factories).
+- `entities`/`entity_identifiers` ficam fora (opcionais, para correlação futura — não listadas no prompt 04).
+- **Decisões de schema**:
+  - Ledger (`credit_transactions`) imutável: só `created_at` (`UPDATED_AT = null`), FKs com `restrictOnDelete` (não apaga por cascade).
+  - `audit_logs.user_id` com `nullOnDelete` (preserva trilha mesmo sem o ator).
+  - `credit_transactions.reference` e `audit_logs.subject` como morphs (polimórficos).
+  - `investigations.current_run_id` sem FK (evita dependência circular com `investigation_runs`).
+  - Chave de idempotência: `source_runs` com `unique(investigation_run_id, source_definition_id)`; `investigation_runs` com `unique(investigation_id, run_number)`; `idempotency_key` único em ledger/payments/reservations; `external_id`/`external_event_id` únicos em payments/payment_events.
+  - Valores monetários em centavos inteiros (`price_cents`, `amount_cents`, `cost_operational_cents`); créditos como inteiros.
+  - Casts JSON (`array`) e `datetime` nos campos pertinentes.
+- Models usam `$guarded = []` + `casts()` (populados por services, não por input de request); `User` ganhou `wallet()`, `investigations()`, `payments()`.
