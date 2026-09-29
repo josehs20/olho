@@ -42,4 +42,12 @@ class UserFactory extends Factory
             'email_verified_at' => null,
         ]);
     }
+
+    /**
+     * Indicate that the user has administrator privileges.
+     */
+    public function admin(): static
+    {
+        return $this->afterCreating(fn (User $user) => $user->forceFill(['is_admin' => true])->save());
+    }
 }
