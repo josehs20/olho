@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Payments\FakePixProvider;
 use App\Payments\PaymentProvider;
 use App\Policies\InvestigationPolicy;
+use App\Sources\Adapters\HoleheMockAdapter;
 use App\Sources\Adapters\MaigretMockAdapter;
 use App\Sources\Adapters\SherlockMockAdapter;
 use App\Sources\Adapters\WhatsMyNameMockAdapter;
@@ -39,6 +40,7 @@ class AppServiceProvider extends ServiceProvider
                 new MaigretMockAdapter,
                 new SherlockMockAdapter,
                 new WhatsMyNameMockAdapter,
+                new HoleheMockAdapter,
             ]);
         });
     }

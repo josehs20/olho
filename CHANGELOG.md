@@ -127,3 +127,11 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   - Cenários: default → múltiplos itens; `not_found` → vazio; `timeout` → `SourceTimeoutException`; `error` → `SourceUnavailableException`.
 - Registrado no `SourceRegistry`.
 - Testes: `WhatsMyNameMockAdapterTest` (key, suporte, múltiplos itens, not_found/timeout/error, normalização, registro).
+
+## Etapa 13 — Holehe mock
+
+- `App\Sources\Adapters\HoleheMockAdapter` (key `holehe`), baseado em **e-mail**.
+  - Simula serviços onde o e-mail está cadastrado (twitter/spotify/instagram/netflix/amazon) com `metadata.service`.
+  - Cenários: default → serviços encontrados; `not_found` → vazio; `timeout` → `SourceTimeoutException`; `error` → `SourceUnavailableException`.
+- Registrado no `SourceRegistry`.
+- Testes: `HoleheMockAdapterTest` (key, suporte por e-mail, serviços, not_found/timeout/error, normalização, registro).
