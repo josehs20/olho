@@ -73,6 +73,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'investigations' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/investigations.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'max_files' => 14,
+            'replace_placeholders' => true,
+        ],
+
         'monthly' => [
             'driver' => 'monthly',
             'path' => storage_path('logs/laravel.log'),

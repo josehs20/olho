@@ -8,10 +8,12 @@ use App\Models\InvestigationRun;
 use App\Models\SourceDefinition;
 use App\Models\Wallet;
 use App\Services\CreditLedgerService;
+use App\Services\LogSanitizer;
 use App\Sources\SourceRunStatus;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 
 class StartInvestigationRunJob implements ShouldBeUnique, ShouldQueue
 {
@@ -30,7 +32,7 @@ class StartInvestigationRunJob implements ShouldBeUnique, ShouldQueue
         return 'start-run-'.$this->investigationRunId;
     }
 
-    public function handle(CreditLedgerService $credits): void
+    public function handle(CreditLedgerService $credits, LogSanitizer $sanitizer): void
     {
         $run = InvestigationRun::findOrFail($this->investigationRunId);
 
@@ -65,6 +67,11 @@ class StartInvestigationRunJob implements ShouldBeUnique, ShouldQueue
             } catch (InsufficientCreditsException $e) {
                 $this->failRun($run, $investigation, 'Saldo insuficiente para executar a investigação.');
 
+                Log::channel('investigations')->warning('run.failed', $sanitizer->sanitize([
+                    'investigation_run_id' => $run->id,
+                    'reason' => 'insufficient_credits',
+                ]));
+
                 return;
             }
         }
@@ -77,6 +84,12 @@ class StartInvestigationRunJob implements ShouldBeUnique, ShouldQueue
 
             ExecuteSourceJob::dispatch($sourceRun->id);
         }
+
+        Log::channel('investigations')->info('run.started', $sanitizer->sanitize([
+            'investigation_run_id' => $run->id,
+            'sources' => $sources->count(),
+            'credits_reserved' => $totalCost,
+        ]));
 
         if ($sources->isEmpty()) {
             $this->failRun($run, $investigation, 'Nenhum módulo ativo para executar.');

@@ -212,3 +212,11 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - Idempotência extra: `ExecuteSourceJob` e `StartInvestigationRunJob` implementam `ShouldBeUnique` (`uniqueId` por sourceRun/run).
 - Webhooks já idempotentes via `payment_events.external_event_id`.
 - Testes: `SourceCacheTest` (chave com source/versão/hash, remember, entrada diferente → chave diferente, serialização de `SourceResult` DTOs).
+
+## Etapa 22 — Logs e auditoria
+
+- Três níveis: application logs (Laravel), investigation/source logs (canal `investigations` em `config/logging.php`) e audit logs (`audit_logs` + admin/audit, já existentes).
+- `App\Services\LogSanitizer`: sanitiza arrays (chaves sensíveis → `[REDACTED]`) e strings (mascara `key=...`/`PIX_KEY=...`) antes de logar.
+- Jobs registram eventos no canal `investigations`: `StartInvestigationRunJob` (`run.started`/`run.failed`) e `ExecuteSourceJob` (`source.executed` com status/erro/duração), sempre sanitizados.
+- Interface administrativa de auditoria já existente (etapa 20).
+- Testes: `LogSanitizerTest` (chaves sensíveis, PIX key em string, dados seguros intactos).

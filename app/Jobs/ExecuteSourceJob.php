@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\SourceDefinition;
 use App\Models\SourceRun;
+use App\Services\LogSanitizer;
 use App\Services\SourceCache;
 use App\Services\SourceResultNormalizer;
 use App\Sources\Exceptions\SourceException;
@@ -16,6 +17,7 @@ use App\Sources\SourceRunStatus;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 
 class ExecuteSourceJob implements ShouldBeUnique, ShouldQueue
 {
@@ -34,7 +36,7 @@ class ExecuteSourceJob implements ShouldBeUnique, ShouldQueue
         return 'execute-source-'.$this->sourceRunId;
     }
 
-    public function handle(SourceRegistry $registry, SourceCache $cache): void
+    public function handle(SourceRegistry $registry, SourceCache $cache, LogSanitizer $sanitizer): void
     {
         $sourceRun = SourceRun::findOrFail($this->sourceRunId);
 
@@ -73,6 +75,14 @@ class ExecuteSourceJob implements ShouldBeUnique, ShouldQueue
                 $started,
             );
         }
+
+        Log::channel('investigations')->info('source.executed', $sanitizer->sanitize([
+            'source_run_id' => $sourceRun->id,
+            'investigation_run_id' => $sourceRun->investigation_run_id,
+            'status' => $sourceRun->status,
+            'error_code' => $sourceRun->error_code,
+            'duration_ms' => $sourceRun->duration_ms,
+        ]));
 
         $this->continueRunIfDone($sourceRun->investigation_run_id);
     }
