@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\Investigation;
 use App\Models\User;
 use App\Payments\FakePixProvider;
 use App\Payments\PaymentProvider;
+use App\Policies\InvestigationPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -29,5 +31,6 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::define('access-admin', fn (User $user) => $user->is_admin);
+        Gate::policy(Investigation::class, InvestigationPolicy::class);
     }
 }

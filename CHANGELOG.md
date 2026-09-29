@@ -65,3 +65,13 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - UI: lista de pacotes (`/credits`), página de pedido com PIX copia-e-cola e botão "Simular pagamento" (fake); rotas `payments.*` + webhook `/payments/webhook` (isento de CSRF).
 - **Idempotência**: `payment_events.external_event_id` único (dedup), `payments.external_id` único, e concessão de créditos idempotente por pagamento.
 - Testes: `PaymentServiceTest` (checkout, pacote inativo, webhook pago concede créditos uma única vez, evento diferente não duplica, webhook inválido, simulação).
+
+## Etapa 07 — Domínio de investigação
+
+- `App\Services\InvestigationService`: `create` (cria `Investigation` + `InvestigationRun` com snapshot do input + módulos, sem executar fontes nem reservar créditos — isso é dos jobs), `history`.
+- Validação de entradas: trim, e-mail minúsculo, campos vazios → `null`; módulos exigem `SourceDefinition` ativa e o campo obrigatório do `type` (username/email/phone).
+- Status: constantes em `Investigation` (draft…expired) e `InvestigationRun` (pending…failed); criação deixa investigation `queued` e run `pending`.
+- `App\Policies\InvestigationPolicy` (`view`) registrado em `AppServiceProvider`; controller usa `AuthorizesRequests::authorize`.
+- UI: `/investigations` (histórico), `/investigations/create` (form + seleção de módulos), `/investigations/{id}` (detalhes/execuções), via `Route::resource`.
+- `StoreInvestigationRequest` para validação sintática; erros de domínio viram erro no campo `modules`.
+- Testes: `InvestigationServiceTest` (snapshot, sem módulo, módulo inativo, input obrigatório por tipo, isolamento de histórico) e `InvestigationTest` (render, criação, 403 para investigação alheia, redirect de guest).

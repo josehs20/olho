@@ -12,6 +12,16 @@ class InvestigationRun extends Model
 {
     use HasFactory;
 
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_RUNNING = 'running';
+
+    public const STATUS_PARTIAL = 'partial';
+
+    public const STATUS_COMPLETED = 'completed';
+
+    public const STATUS_FAILED = 'failed';
+
     protected $guarded = [];
 
     protected function casts(): array

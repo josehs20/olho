@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\InvestigationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +30,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/credits/{package}/checkout', [PaymentController::class, 'store'])->name('payments.store');
     Route::get('/payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
     Route::post('/payments/{payment}/simulate', [PaymentController::class, 'simulate'])->name('payments.simulate');
+
+    Route::resource('investigations', InvestigationController::class)->only(['index', 'create', 'store', 'show']);
 });
 
 Route::post('/payments/webhook', [PaymentController::class, 'webhook'])->name('payments.webhook');
