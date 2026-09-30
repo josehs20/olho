@@ -17,9 +17,12 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Services\CorrelationService;
 use App\Services\CreditLedgerService;
+use App\Services\InvestigationOrchestrator;
 use App\Services\LogSanitizer;
+use App\Services\ReportManifestBuilder;
 use App\Services\ResultDeduplicator;
 use App\Services\SourceCache;
+use App\Services\SourceResultNormalizer;
 use App\Sources\SourceRegistry;
 use App\Sources\SourceRunStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -68,7 +71,7 @@ class InvestigationPipelineTest extends TestCase
     {
         [, $wallet, $investigation, $run] = $this->createPendingRun();
 
-        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(LogSanitizer::class));
+        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
 
         $run->refresh();
         $this->assertSame(InvestigationRun::STATUS_RUNNING, $run->status);
@@ -84,8 +87,8 @@ class InvestigationPipelineTest extends TestCase
     {
         [, , , $run] = $this->createPendingRun();
 
-        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(LogSanitizer::class));
-        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(LogSanitizer::class));
+        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
+        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
 
         $this->assertSame(1, $run->sourceRuns()->count());
     }
@@ -94,7 +97,7 @@ class InvestigationPipelineTest extends TestCase
     {
         [, , $investigation, $run] = $this->createPendingRun(balance: 0);
 
-        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(LogSanitizer::class));
+        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
 
         $this->assertSame(InvestigationRun::STATUS_FAILED, $run->fresh()->status);
         $this->assertSame(Investigation::STATUS_FAILED, $investigation->fresh()->status);
@@ -104,11 +107,11 @@ class InvestigationPipelineTest extends TestCase
     public function test_execute_source_job_persists_results(): void
     {
         [, , , $run] = $this->createPendingRun();
-        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(LogSanitizer::class));
+        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
 
         $sourceRun = $run->sourceRuns()->first();
 
-        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(LogSanitizer::class));
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
 
         $sourceRun->refresh();
         $this->assertSame(SourceRunStatus::Completed->value, $sourceRun->status);
@@ -116,14 +119,37 @@ class InvestigationPipelineTest extends TestCase
         $this->assertSame(2, $sourceRun->sourceResults()->with('evidence')->get()->flatMap->evidence->count());
     }
 
-    public function test_execute_source_job_marks_timeout(): void
+    public function test_execute_source_job_reexecutes_interrupted_attempt(): void
     {
-        [, , , $run] = $this->createPendingRun(input: ['username' => 'timeout']);
-        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(LogSanitizer::class));
+        [, , , $run] = $this->createPendingRun();
+        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
 
         $sourceRun = $run->sourceRuns()->first();
 
-        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(LogSanitizer::class));
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
+        $this->assertSame(2, $sourceRun->sourceResults()->count());
+
+        // Worker interrompido antes de finalizar: a fonte fica presa em `running`.
+        $sourceRun->refresh();
+        $sourceRun->status = SourceRunStatus::Running->value;
+        $sourceRun->save();
+
+        // O retry precisa reexecutar (e não acumular resultados duplicados).
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
+
+        $sourceRun->refresh();
+        $this->assertSame(SourceRunStatus::Completed->value, $sourceRun->status);
+        $this->assertSame(2, $sourceRun->sourceResults()->count());
+    }
+
+    public function test_execute_source_job_marks_timeout(): void
+    {
+        [, , , $run] = $this->createPendingRun(input: ['username' => 'timeout']);
+        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
+
+        $sourceRun = $run->sourceRuns()->first();
+
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
 
         $sourceRun->refresh();
         $this->assertSame(SourceRunStatus::Timeout->value, $sourceRun->status);
@@ -144,10 +170,10 @@ class InvestigationPipelineTest extends TestCase
             'input_snapshot' => ['username' => 'error', 'email' => 'a@b.c', 'modules' => ['mock-username', 'mock-email']],
         ]);
 
-        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(LogSanitizer::class));
+        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
 
         foreach ($run->sourceRuns()->get() as $sourceRun) {
-            (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(LogSanitizer::class));
+            (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
         }
 
         $this->assertSame(SourceRunStatus::Failed->value, $run->sourceRuns()->where('source_definition_id', $usernameSource->id)->first()->status);
@@ -158,15 +184,15 @@ class InvestigationPipelineTest extends TestCase
     {
         [$user, $wallet, , $run] = $this->createPendingRun();
 
-        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(LogSanitizer::class));
+        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
 
         $sourceRun = $run->sourceRuns()->first();
-        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(LogSanitizer::class));
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
 
         (new NormalizeSourceResultsJob($run->id))->handle(app(ResultDeduplicator::class));
         (new DeduplicateResultsJob($run->id))->handle(app(ResultDeduplicator::class));
         (new BuildCorrelationJob($run->id))->handle(app(CorrelationService::class));
-        (new BuildHtmlReportJob($run->id))->handle();
+        (new BuildHtmlReportJob($run->id))->handle(app(InvestigationOrchestrator::class), app(LogSanitizer::class), app(ReportManifestBuilder::class));
         (new ReleaseReservedCreditsJob($run->id))->handle(app(CreditLedgerService::class));
 
         $run->refresh();
@@ -216,16 +242,16 @@ class InvestigationPipelineTest extends TestCase
             'input_snapshot' => ['username' => 'error', 'email' => 'a@b.c', 'modules' => ['mock-username', 'mock-email']],
         ]);
 
-        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(LogSanitizer::class));
+        (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
 
         foreach ($run->sourceRuns()->get() as $sourceRun) {
-            (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(LogSanitizer::class));
+            (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
         }
 
         (new NormalizeSourceResultsJob($run->id))->handle(app(ResultDeduplicator::class));
         (new DeduplicateResultsJob($run->id))->handle(app(ResultDeduplicator::class));
         (new BuildCorrelationJob($run->id))->handle(app(CorrelationService::class));
-        (new BuildHtmlReportJob($run->id))->handle();
+        (new BuildHtmlReportJob($run->id))->handle(app(InvestigationOrchestrator::class), app(LogSanitizer::class), app(ReportManifestBuilder::class));
         (new ReleaseReservedCreditsJob($run->id))->handle(app(CreditLedgerService::class));
 
         $this->assertSame(InvestigationRun::STATUS_PARTIAL, $run->fresh()->status);

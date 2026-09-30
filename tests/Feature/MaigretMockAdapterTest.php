@@ -27,20 +27,21 @@ class MaigretMockAdapterTest extends TestCase
 
     public function test_found_scenario_returns_deterministic_fixtures(): void
     {
-        $results = (new MaigretMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'joao')));
+        $findings = (new MaigretMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'joao')))->findings;
 
-        $this->assertCount(3, $results);
-        $this->assertSame('social_profile', $results[0]->entityType);
-        $this->assertSame('joao', $results[0]->value);
-        $this->assertSame('https://github.com/joao', $results[0]->url);
-        $this->assertSame('maigret', $results[0]->source);
+        $this->assertCount(3, $findings);
+        $this->assertSame('social_profile', $findings[0]->entityType);
+        $this->assertSame('joao', $findings[0]->value);
+        $this->assertSame('https://github.com/joao', $findings[0]->url);
+        $this->assertSame('maigret', $findings[0]->source);
     }
 
     public function test_not_found_scenario_returns_empty(): void
     {
-        $results = (new MaigretMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'not_found')));
+        $outcome = (new MaigretMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'not_found')));
 
-        $this->assertSame([], $results);
+        $this->assertTrue($outcome->isEmpty());
+        $this->assertSame([], $outcome->findings);
     }
 
     public function test_timeout_scenario_throws(): void

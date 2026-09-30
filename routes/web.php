@@ -9,10 +9,13 @@ use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\SourceController as AdminSourceController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Guest\InvestigationController as GuestInvestigationController;
+use App\Http\Controllers\Guest\PaymentController as GuestPaymentController;
 use App\Http\Controllers\InvestigationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
+use App\Http\Middleware\GuestAccessHeaders;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -22,7 +25,7 @@ Route::get('/', function () {
 Route::view('/privacy', 'legal.privacy')->name('legal.privacy');
 Route::view('/terms', 'legal.terms')->name('legal.terms');
 
-Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -30,7 +33,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
 
     Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
@@ -49,7 +52,7 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.'
     Route::get('/audit', [AdminAuditController::class, 'index'])->name('audit.index');
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware('auth')->group(function () {
     Route::get('/credits', [PaymentController::class, 'index'])->name('payments.index');
     Route::post('/credits/{package}/checkout', [PaymentController::class, 'store'])->middleware('throttle:10,1')->name('payments.store');
     Route::get('/payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
@@ -59,6 +62,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/investigations/create', [InvestigationController::class, 'create'])->name('investigations.create');
     Route::post('/investigations', [InvestigationController::class, 'store'])->middleware('throttle:10,1')->name('investigations.store');
     Route::get('/investigations/{investigation}', [InvestigationController::class, 'show'])->name('investigations.show');
+    Route::post('/investigations/{investigation}/runs', [InvestigationController::class, 'rerun'])->middleware('throttle:10,1')->name('investigations.rerun');
 
     Route::get('/investigations/{investigation}/runs/{run}/report', [ReportController::class, 'show'])->name('investigations.report');
 
@@ -67,5 +71,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 Route::post('/payments/webhook', [PaymentController::class, 'webhook'])->name('payments.webhook');
+
+/*
+|--------------------------------------------------------------------------
+| Investigação avulsa (prompt 41) — jornada pública, sem cadastro
+|--------------------------------------------------------------------------
+| O token é a única credencial de acesso ao resultado: nenhuma rota aceita o
+| id da investigação. As páginas com token respondem `no-store` + `noindex`
+| (GuestAccessHeaders) e são limitadas por IP e por hash do token.
+*/
+Route::prefix('investigacao')->name('guest.')->group(function () {
+    Route::get('/', [GuestInvestigationController::class, 'create'])
+        ->middleware('throttle:guest-create')->name('investigations.create');
+
+    Route::post('/', [GuestInvestigationController::class, 'store'])
+        ->middleware('throttle:guest-create')->name('investigations.store');
+
+    Route::prefix('acesso/{token}')
+        ->middleware(['throttle:guest-access', GuestAccessHeaders::class])
+        ->group(function () {
+            Route::get('/', [GuestInvestigationController::class, 'show'])->name('investigations.show');
+            Route::get('/status', [GuestInvestigationController::class, 'status'])->name('investigations.status');
+            Route::get('/relatorio', [GuestInvestigationController::class, 'report'])->name('investigations.report');
+            Route::post('/pix/confirmar', [GuestPaymentController::class, 'simulate'])->name('payments.simulate');
+        });
+});
 
 require __DIR__.'/auth.php';

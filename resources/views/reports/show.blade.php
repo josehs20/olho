@@ -1,10 +1,21 @@
-<x-app-layout>
+@php
+    $summary = $manifest['summary'] ?? [];
+    $sources = $manifest['sources'] ?? [];
+    $discoveries = $manifest['discoveries'] ?? [];
+    $correlation = $manifest['correlation'] ?? ($correlation ?? null);
+    $limitations = $manifest['limitations'] ?? [];
+    $failedSources = $manifest['sources_failed'] ?? [];
+    $manifestHash = $run->report?->content_hash;
+    $duration = static fn (?int $ms) => $ms === null ? '—' : number_format($ms / 1000, 2, ',', '.').' s';
+@endphp
+
+<x-dynamic-component :component="$layout ?? 'app-layout'">
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h2 class="text-xl font-semibold leading-tight text-gray-800">
                 {{ __('Relatório') }} — {{ $investigation->title }}
             </h2>
-            <a href="{{ route('investigations.show', $investigation) }}" class="print:hidden text-sm text-gray-600 hover:text-gray-900">
+            <a href="{{ $backUrl ?? route('investigations.show', $investigation) }}" class="print:hidden text-sm text-gray-600 hover:text-gray-900">
                 &larr; {{ __('Voltar') }}
             </a>
         </div>
@@ -14,22 +25,34 @@
         <div class="mx-auto max-w-4xl sm:px-6 lg:px-8 print:max-w-none">
             <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg print:shadow-none">
                 <div class="p-8">
+                    {{-- Cabeçalho: identificação do run e do relatório --}}
                     <div class="flex items-start justify-between border-b border-gray-200 pb-6">
                         <div>
                             <h1 class="text-2xl font-bold text-gray-900">{{ $investigation->title }}</h1>
                             <p class="mt-1 text-sm text-gray-500">
                                 {{ __('Investigação') }} #{{ $investigation->id }} · {{ __('Run') }} #{{ $run->run_number }}
+                                · {{ __('Status') }}: {{ __((string) $run->status) }}
+                            </p>
+                            <p class="mt-1 text-sm text-gray-500">
+                                {{ __('Início') }}: {{ $run->started_at?->format('d/m/Y H:i:s') ?? '—' }}
+                                · {{ __('Conclusão') }}: {{ $run->finished_at?->format('d/m/Y H:i:s') ?? '—' }}
                             </p>
                         </div>
-                        <p class="text-sm text-gray-500">{{ now()->format('d/m/Y H:i') }}</p>
+                        <div class="text-right text-sm text-gray-500">
+                            <p>{{ __('Relatório gerado em') }} {{ $run->report?->generated_at?->format('d/m/Y H:i:s') ?? now()->format('d/m/Y H:i:s') }}</p>
+                            @if ($manifestHash)
+                                <p class="text-xs text-gray-400">{{ __('Manifesto') }} {{ $manifest['version'] ?? '—' }} · {{ substr($manifestHash, 0, 12) }}</p>
+                            @endif
+                        </div>
                     </div>
 
+                    {{-- Resumo --}}
                     <section class="mt-6">
                         <h2 class="text-lg font-semibold text-gray-900">{{ __('Resumo') }}</h2>
                         <dl class="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
                             <div>
                                 <dt class="font-medium text-gray-500">{{ __('Status') }}</dt>
-                                <dd class="text-gray-900">{{ $run->status }}</dd>
+                                <dd class="text-gray-900">{{ __((string) $run->status) }}</dd>
                             </div>
                             <div>
                                 <dt class="font-medium text-gray-500">{{ __('Créditos') }}</dt>
@@ -37,88 +60,242 @@
                             </div>
                             <div>
                                 <dt class="font-medium text-gray-500">{{ __('Correlação') }}</dt>
-                                <dd class="text-gray-900">{{ $correlation['score'] ?? '—' }} — {{ $correlation['label'] ?? '—' }}</dd>
+                                <dd class="text-gray-900">
+                                    {{ $correlation['score'] ?? '—' }}{{ isset($correlation['score_max']) ? '/'.$correlation['score_max'] : '' }}
+                                    — {{ $correlation['label'] ?? '—' }}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="font-medium text-gray-500">{{ __('Descobertas') }}</dt>
+                                <dd class="text-gray-900">
+                                    {{ $summary['discoveries_total'] ?? 0 }}
+                                    @if (($summary['discoveries_consolidated'] ?? 0) > 0)
+                                        ({{ $summary['discoveries_consolidated'] }} {{ __('consolidadas entre fontes') }})
+                                    @endif
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="font-medium text-gray-500">{{ __('Fontes') }}</dt>
+                                <dd class="text-gray-900">
+                                    {{ $summary['sources_completed'] ?? 0 }} {{ __('concluídas') }}
+                                    · {{ ($summary['sources_failed'] ?? 0) + ($summary['sources_timeout'] ?? 0) }} {{ __('com falha/timeout') }}
+                                    · {{ $summary['sources_skipped'] ?? 0 }} {{ __('não aplicáveis') }}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="font-medium text-gray-500">{{ __('Resultados observados') }}</dt>
+                                <dd class="text-gray-900">{{ $summary['results_total'] ?? 0 }}</dd>
                             </div>
                         </dl>
                     </section>
 
+                    {{-- Identificadores pesquisados --}}
                     <section class="mt-8">
                         <h2 class="text-lg font-semibold text-gray-900">{{ __('Entradas informadas') }}</h2>
                         <dl class="mt-2 grid grid-cols-2 gap-2 text-sm">
-                            @foreach ($run->input_snapshot ?? [] as $key => $value)
-                                @if (is_scalar($value))
-                                    <dt class="font-medium text-gray-500">{{ $key }}</dt>
-                                    <dd class="text-gray-900">{{ $value ?? '—' }}</dd>
-                                @endif
-                            @endforeach
+                            @forelse ($manifest['identifiers'] ?? [] as $key => $value)
+                                <dt class="font-medium text-gray-500">{{ $key }}</dt>
+                                <dd class="text-gray-900">{{ $value }}</dd>
+                            @empty
+                                <dd class="text-gray-500">{{ __('Nenhum identificador registrado.') }}</dd>
+                            @endforelse
                         </dl>
                     </section>
 
+                    {{-- Fontes consultadas e status de cada uma --}}
                     <section class="mt-8">
-                        <h2 class="text-lg font-semibold text-gray-900">{{ __('Módulos executados') }}</h2>
-                        <ul class="mt-2 list-inside list-disc text-sm text-gray-900">
-                            @foreach ($run->sourceRuns as $sourceRun)
-                                <li>{{ $sourceRun->sourceDefinition?->name ?? $sourceRun->source_definition_id }}</li>
-                            @endforeach
-                        </ul>
+                        <h2 class="text-lg font-semibold text-gray-900">{{ __('Fontes consultadas') }}</h2>
+                        <div class="mt-3 overflow-x-auto">
+                            <table class="min-w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+                                        <th class="py-2 pr-3">{{ __('Módulo') }}</th>
+                                        <th class="py-2 pr-3">{{ __('Status') }}</th>
+                                        <th class="py-2 pr-3">{{ __('Versão') }}</th>
+                                        <th class="py-2 pr-3">{{ __('Resultados') }}</th>
+                                        <th class="py-2 pr-3">{{ __('Tentativas') }}</th>
+                                        <th class="py-2 pr-3">{{ __('Duração') }}</th>
+                                        <th class="py-2">{{ __('Observação') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($sources as $source)
+                                        <tr class="border-b border-gray-100 align-top text-gray-900">
+                                            <td class="py-2 pr-3">
+                                                <span class="font-medium">{{ $source['name'] }}</span>
+                                                <span class="block text-xs text-gray-500">{{ $source['slug'] }} · {{ $source['type'] ?? '—' }}</span>
+                                            </td>
+                                            <td class="py-2 pr-3">{{ $source['status_label'] ?? '—' }}</td>
+                                            <td class="py-2 pr-3">{{ $source['tool_version'] ?? '—' }}</td>
+                                            <td class="py-2 pr-3">{{ $source['result_count'] ?? 0 }}</td>
+                                            <td class="py-2 pr-3">{{ $source['attempts'] ?? 0 }}</td>
+                                            <td class="py-2 pr-3">{{ $duration($source['duration_ms'] ?? null) }}</td>
+                                            <td class="py-2 text-xs text-gray-600">
+                                                {{ $source['error_message_public'] ?? '—' }}
+                                                @foreach ($source['warnings'] ?? [] as $warning)
+                                                    <span class="block">{{ $warning }}</span>
+                                                @endforeach
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
                     </section>
 
+                    {{-- Descobertas consolidadas (todas as fontes observadoras) --}}
                     <section class="mt-8">
-                        <h2 class="text-lg font-semibold text-gray-900">{{ __('Resultados') }}</h2>
-                        @foreach ($run->sourceRuns as $sourceRun)
-                            <div class="mt-4 border-t border-gray-100 pt-4">
-                                <div class="flex items-center justify-between">
-                                    <p class="font-medium text-gray-900">{{ $sourceRun->sourceDefinition?->name ?? $sourceRun->source_definition_id }}</p>
-                                    <span class="text-sm text-gray-500">{{ $sourceRun->displayStatus() }}</span>
+                        <h2 class="text-lg font-semibold text-gray-900">{{ __('Descobertas') }}</h2>
+                        @forelse ($discoveries as $discovery)
+                            <div class="mt-4 rounded-md bg-gray-50 p-4">
+                                <div class="flex items-start justify-between">
+                                    <div>
+                                        <p class="font-medium text-gray-900">{{ $discovery['title'] ?? $discovery['value'] }}</p>
+                                        <p class="text-xs text-gray-500">
+                                            {{ $discovery['entity_type'] ?? '—' }}
+                                            @if (! empty($discovery['platform']))
+                                                · {{ $discovery['platform'] }}
+                                            @endif
+                                            · {{ __('observado em') }} {{ \Illuminate\Support\Carbon::parse($discovery['observed_at'] ?? now())->format('d/m/Y H:i:s') }}
+                                            @if (($discovery['confidence'] ?? null) !== null)
+                                                · {{ __('confiança') }}: {{ number_format((float) $discovery['confidence'], 2, ',', '.') }}
+                                            @endif
+                                        </p>
+                                    </div>
+                                    <span class="rounded bg-white px-2 py-0.5 text-xs text-gray-600">
+                                        {{ count($discovery['sources'] ?? []) > 1
+                                            ? __('consolidada em :count fontes', ['count' => count($discovery['sources'])])
+                                            : __('fonte única') }}
+                                    </span>
                                 </div>
 
-                                @foreach ($sourceRun->sourceResults as $result)
-                                    <div class="mt-3 rounded-md bg-gray-50 p-3">
-                                        <p class="font-medium text-gray-900">{{ $result->title ?? $result->value }}</p>
-                                        @if ($result->url)
-                                            <a href="{{ $result->url }}" target="_blank" rel="noopener noreferrer" class="break-all text-sm text-indigo-600 hover:underline">{{ $result->url }}</a>
-                                        @endif
-                                        <p class="mt-1 text-xs text-gray-500">{{ $result->observed_at?->format('d/m/Y H:i') }}</p>
+                                @if (! empty($discovery['url']) && str_starts_with($discovery['url'], 'http'))
+                                    <a href="{{ $discovery['url'] }}" target="_blank" rel="noopener noreferrer" class="mt-2 block break-all text-sm text-indigo-600 hover:underline">{{ $discovery['url'] }}</a>
+                                @endif
 
-                                        <div class="mt-2 flex flex-wrap gap-1">
-                                            @foreach ($result->evidence as $evidence)
-                                                <span class="rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-700">
-                                                    {{ $evidence->type }}: {{ $evidence->value }}
-                                                </span>
+                                <div class="mt-2 flex flex-wrap gap-1">
+                                    @foreach ($discovery['evidence'] ?? [] as $evidence)
+                                        <span class="rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-700">
+                                            {{ $evidence['type'] }}: {{ $evidence['value'] }}
+                                        </span>
+                                    @endforeach
+                                </div>
+
+                                <div class="mt-3 text-xs text-gray-600">
+                                    <span class="font-medium">{{ __('Fontes observadoras') }}:</span>
+                                    {{ implode(', ', $discovery['sources'] ?? []) }}
+                                    @if (count($discovery['observations'] ?? []) > 1)
+                                        <ul class="mt-1 list-inside list-disc">
+                                            @foreach ($discovery['observations'] as $observation)
+                                                <li>
+                                                    {{ $observation['source'] ?? '—' }} —
+                                                    {{ $observation['url'] ?? '—' }}
+                                                    ({{ \Illuminate\Support\Carbon::parse($observation['observed_at'] ?? now())->format('d/m/Y H:i') }})
+                                                </li>
                                             @endforeach
-                                        </div>
-                                    </div>
-                                @endforeach
+                                        </ul>
+                                    @endif
+                                </div>
                             </div>
-                        @endforeach
+                        @empty
+                            <p class="mt-2 text-sm text-gray-500">{{ __('Nenhuma descoberta registrada neste run.') }}</p>
+                        @endforelse
                     </section>
 
+                    {{-- Correlação explicável: fatores, evidências e limitações --}}
                     <section class="mt-8">
                         <h2 class="text-lg font-semibold text-gray-900">{{ __('Correlação') }}</h2>
                         @if ($correlation)
                             <p class="mt-2 text-sm text-gray-900">
-                                {{ __('Score') }}: {{ $correlation['score'] }} ·
-                                {{ __('Regra') }}: {{ $correlation['rule_version'] }} ·
-                                {{ $correlation['label'] }}
+                                {{ __('Indicador interno') }}:
+                                {{ $correlation['score'] ?? '—' }}{{ isset($correlation['score_max']) ? '/'.$correlation['score_max'] : '' }}
+                                · {{ __('Regra') }}: {{ $correlation['rule_version'] ?? '—' }}
+                                · {{ $correlation['label'] ?? '—' }}
                             </p>
-                            <ul class="mt-2 list-inside list-disc text-sm text-gray-700">
-                                @foreach ($correlation['signals'] ?? [] as $signal)
-                                    <li>{{ $signal['name'] }} (+{{ $signal['weight'] }})</li>
-                                @endforeach
-                            </ul>
+                            <p class="mt-1 text-xs text-gray-500">
+                                {{ __('Este indicador não é probabilidade de identidade nem confirmação de que a mesma pessoa controla as contas.') }}
+                            </p>
+
+                            @if (! empty($correlation['factors']))
+                                <div class="mt-3 overflow-x-auto">
+                                    <table class="min-w-full text-sm">
+                                        <thead>
+                                            <tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+                                                <th class="py-2 pr-3">{{ __('Fator') }}</th>
+                                                <th class="py-2 pr-3">{{ __('Peso') }}</th>
+                                                <th class="py-2 pr-3">{{ __('Explicação') }}</th>
+                                                <th class="py-2 pr-3">{{ __('Evidências') }}</th>
+                                                <th class="py-2 pr-3">{{ __('Fontes') }}</th>
+                                                <th class="py-2">{{ __('Limitação') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($correlation['factors'] as $factor)
+                                                <tr class="border-b border-gray-100 align-top text-gray-900">
+                                                    <td class="py-2 pr-3">
+                                                        <span class="font-medium">{{ $factor['type'] ?? '—' }}</span>
+                                                        <span class="block text-xs text-gray-500">{{ $factor['signal'] ?? '' }}</span>
+                                                    </td>
+                                                    <td class="py-2 pr-3">+{{ $factor['weight'] ?? 0 }}</td>
+                                                    <td class="py-2 pr-3 text-xs text-gray-700">{{ $factor['explanation'] ?? '—' }}</td>
+                                                    <td class="py-2 pr-3 text-xs text-gray-700">
+                                                        {{ implode(', ', $factor['evidence_types'] ?? []) ?: '—' }}
+                                                        @if (! empty($factor['evidence_ids']))
+                                                            <span class="block text-gray-500">#{{ implode(', #', $factor['evidence_ids']) }}</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="py-2 pr-3 text-xs text-gray-700">{{ implode(', ', $factor['sources'] ?? []) ?: '—' }}</td>
+                                                    <td class="py-2 text-xs text-gray-600">{{ $factor['limitation'] ?? '—' }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
+
+                            @if (! empty($correlation['not_evaluated']))
+                                <p class="mt-3 text-xs text-gray-500">
+                                    {{ __('Não avaliados nesta versão') }}: {{ implode(', ', $correlation['not_evaluated']) }}.
+                                </p>
+                            @endif
                         @else
                             <p class="mt-2 text-sm text-gray-500">{{ __('Correlação não disponível.') }}</p>
                         @endif
                     </section>
 
+                    {{-- Falhas e limitações: nada é escondido para parecer completo --}}
                     <section class="mt-8">
                         <h2 class="text-lg font-semibold text-gray-900">{{ __('Falhas e limitações') }}</h2>
-                        @foreach ($run->sourceRuns->whereIn('status', ['failed', 'timeout']) as $sourceRun)
+
+                        @forelse ($failedSources as $source)
                             <p class="mt-2 text-sm text-gray-700">
-                                <strong>{{ $sourceRun->sourceDefinition?->name ?? $sourceRun->source_definition_id }}</strong>:
-                                {{ $sourceRun->error_message_public ?? $sourceRun->error_code ?? '—' }}
+                                <strong>{{ $source['name'] }}</strong>
+                                ({{ $source['status_label'] ?? $source['status'] }}):
+                                {{ $source['error_message_public'] ?? $source['error_code'] ?? '—' }}
                             </p>
-                        @endforeach
+                        @empty
+                            <p class="mt-2 text-sm text-gray-500">{{ __('Nenhuma fonte falhou neste run.') }}</p>
+                        @endforelse
+
+                        @if (($summary['sources_pending'] ?? 0) > 0)
+                            <p class="mt-2 text-sm text-amber-800">
+                                {{ __('Existem fontes ainda não concluídas neste run; os resultados são parciais.') }}
+                            </p>
+                        @endif
+
+                        @if (collect($sources)->contains(fn ($source) => ($source['slug'] ?? null) === 'holehe'))
+                            <p class="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+                                {{ __('Sobre o módulo Holehe: a indicação de que um e-mail aparece como cadastrado em um serviço é um sinal técnico público (verificação de cadastro, sem recuperação de senha). Isso não prova que a pessoa investigada controla aquela conta.') }}
+                            </p>
+                        @endif
+
+                        @if (! empty($limitations))
+                            <ul class="mt-4 list-inside list-disc text-sm text-gray-700">
+                                @foreach ($limitations as $limitation)
+                                    <li>{{ $limitation }}</li>
+                                @endforeach
+                            </ul>
+                        @endif
 
                         <p class="mt-4 text-sm text-gray-600">
                             {{ __('Este relatório apresenta sinais públicos compatíveis e não constitui confirmação de identidade. Uma correspondência possível não é identidade confirmada.') }}
@@ -126,11 +303,18 @@
                     </section>
 
                     <p class="mt-8 border-t border-gray-200 pt-4 text-xs text-gray-400">
-                        {{ __('Relatório gerado em') }} {{ now()->format('d/m/Y H:i:s') }}.
+                        {{ __('Relatório gerado em') }} {{ $run->report?->generated_at?->format('d/m/Y H:i:s') ?? now()->format('d/m/Y H:i:s') }}
+                        · {{ __('Run') }} #{{ $run->id }}
+                        @if ($manifestHash)
+                            · {{ __('hash do manifesto') }}: {{ $manifestHash }}
+                        @endif
                     </p>
                 </div>
             </div>
         </div>
     </div>
-</x-app-layout>
+</x-dynamic-component>
+
+
+
 

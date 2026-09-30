@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Sources\Exceptions\SourceNotRegisteredException;
 use App\Sources\Exceptions\SourceTimeoutException;
 use App\Sources\Exceptions\SourceUnavailableException;
 use App\Sources\InvestigationContext;
@@ -25,9 +26,11 @@ class SourceAdapterTest extends TestCase
         $this->assertInstanceOf(MockWebSource::class, $registry->get('mock-web'));
     }
 
-    public function test_registry_throws_for_unknown_source(): void
+    public function test_registry_throws_structured_error_for_unknown_source(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        // Fonte sem adapter registrado é falha estruturada (`unavailable`),
+        // não uma exceção genérica que derrubaria o run.
+        $this->expectException(SourceNotRegisteredException::class);
 
         app(SourceRegistry::class)->get('unknown');
     }
@@ -51,18 +54,20 @@ class SourceAdapterTest extends TestCase
 
     public function test_username_source_returns_deterministic_results(): void
     {
-        $results = (new MockUsernameSource)->execute(new InvestigationContext(new InvestigationInput(username: 'joao')));
+        $findings = (new MockUsernameSource)->execute(new InvestigationContext(new InvestigationInput(username: 'joao')))->findings;
 
-        $this->assertCount(2, $results);
-        $this->assertSame('social_profile', $results[0]->entityType);
-        $this->assertSame('joao', $results[0]->value);
+        $this->assertCount(2, $findings);
+        $this->assertSame('social_profile', $findings[0]->entityType);
+        $this->assertSame('joao', $findings[0]->value);
     }
 
-    public function test_username_source_returns_empty(): void
+    public function test_username_source_returns_empty_outcome(): void
     {
-        $results = (new MockUsernameSource)->execute(new InvestigationContext(new InvestigationInput(username: 'empty')));
+        $outcome = (new MockUsernameSource)->execute(new InvestigationContext(new InvestigationInput(username: 'empty')));
 
-        $this->assertSame([], $results);
+        $this->assertTrue($outcome->isEmpty());
+        $this->assertSame([], $outcome->findings);
+        $this->assertSame([], $outcome->warnings);
     }
 
     public function test_username_source_throws_timeout(): void
@@ -95,13 +100,13 @@ class SourceAdapterTest extends TestCase
     {
         $email = new MockEmailSource;
         $this->assertTrue($email->supports(new InvestigationInput(email: 'a@b.c')));
-        $emailResults = $email->execute(new InvestigationContext(new InvestigationInput(email: 'a@b.c')));
+        $emailResults = $email->execute(new InvestigationContext(new InvestigationInput(email: 'a@b.c')))->findings;
         $this->assertCount(1, $emailResults);
         $this->assertSame('email_account', $emailResults[0]->entityType);
 
         $web = new MockWebSource;
         $this->assertTrue($web->supports(new InvestigationInput(name: 'João')));
-        $webResults = $web->execute(new InvestigationContext(new InvestigationInput(name: 'João')));
+        $webResults = $web->execute(new InvestigationContext(new InvestigationInput(name: 'João')))->findings;
         $this->assertCount(1, $webResults);
         $this->assertSame('web_page', $webResults[0]->entityType);
     }

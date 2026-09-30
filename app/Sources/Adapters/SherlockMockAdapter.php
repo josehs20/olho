@@ -7,6 +7,7 @@ use App\Sources\Exceptions\SourceUnavailableException;
 use App\Sources\InvestigationContext;
 use App\Sources\InvestigationInput;
 use App\Sources\InvestigationSource;
+use App\Sources\SourceOutcome;
 use App\Sources\SourceResult;
 
 /**
@@ -40,16 +41,16 @@ final class SherlockMockAdapter implements InvestigationSource
         return $input->username !== null;
     }
 
-    public function execute(InvestigationContext $context): array
+    public function execute(InvestigationContext $context): SourceOutcome
     {
         $username = $context->input->username;
 
-        return match ($username) {
+        return SourceOutcome::of(match ($username) {
             'not_found' => [],
             'timeout' => throw new SourceTimeoutException('sherlock timeout'),
             'error' => throw new SourceUnavailableException('sherlock unavailable'),
             default => $this->fixtures($username),
-        };
+        });
     }
 
     public function normalize(array $raw): SourceResult

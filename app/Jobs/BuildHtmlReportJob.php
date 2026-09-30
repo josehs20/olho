@@ -2,12 +2,13 @@
 
 namespace App\Jobs;
 
-use App\Models\Investigation;
 use App\Models\InvestigationRun;
-use App\Models\SourceRun;
-use App\Sources\SourceRunStatus;
+use App\Services\InvestigationOrchestrator;
+use App\Services\LogSanitizer;
+use App\Services\ReportManifestBuilder;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 
 class BuildHtmlReportJob implements ShouldQueue
 {
@@ -19,8 +20,11 @@ class BuildHtmlReportJob implements ShouldQueue
 
     public function __construct(public int $investigationRunId) {}
 
-    public function handle(): void
-    {
+    public function handle(
+        InvestigationOrchestrator $orchestrator,
+        LogSanitizer $sanitizer,
+        ReportManifestBuilder $manifests,
+    ): void {
         $run = InvestigationRun::findOrFail($this->investigationRunId);
 
         if ($run->pipelineStage('reported_at')) {
@@ -29,36 +33,36 @@ class BuildHtmlReportJob implements ShouldQueue
             return;
         }
 
-        // Relatório básico (expandido na etapa 18): registra a linha de report.
+        // Manifesto congelado do run (prompt 38): o relatório HTML passa a ser
+        // uma leitura dos dados persistidos, sem depender do estado vivo das
+        // fontes (um rename de módulo não altera um relatório já emitido).
+        $manifest = $manifests->build($run);
+
         $run->report()->updateOrCreate(
             ['investigation_run_id' => $run->id],
             [
                 'user_id' => $run->investigation->user_id,
                 'status' => 'completed',
+                'content_hash' => $manifests->contentHash($manifest),
+                'metadata' => $manifest,
                 'generated_at' => now(),
             ],
         );
 
         $run->markPipelineStage('reported_at');
 
-        $this->finalizeRunStatus($run);
+        // (11) Finaliza o run como COMPLETED, PARTIAL ou FAILED, registrando a
+        // decisão (status, motivo e contagem por status de fonte) para auditoria.
+        $finalization = $orchestrator->finalize($run);
+
+        Log::channel('investigations')->info('run.finalized', $sanitizer->sanitize([
+            'investigation_run_id' => $run->id,
+            'status' => $finalization['status'],
+            'reason' => $finalization['reason'],
+            'counts' => $finalization['counts'],
+            'credits_reserved' => $run->credits_reserved,
+        ]));
 
         ReleaseReservedCreditsJob::dispatch($run->id);
-    }
-
-    private function finalizeRunStatus(InvestigationRun $run): void
-    {
-        $hasFailure = SourceRun::query()
-            ->where('investigation_run_id', $run->id)
-            ->whereIn('status', [SourceRunStatus::Failed->value, SourceRunStatus::Timeout->value])
-            ->exists();
-
-        $run->status = $hasFailure ? InvestigationRun::STATUS_PARTIAL : InvestigationRun::STATUS_COMPLETED;
-        $run->finished_at = now();
-        $run->save();
-
-        $investigation = $run->investigation;
-        $investigation->status = $hasFailure ? Investigation::STATUS_PARTIAL : Investigation::STATUS_COMPLETED;
-        $investigation->save();
     }
 }

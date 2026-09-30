@@ -28,14 +28,18 @@ class NormalizeSourceResultsJob implements ShouldQueue
             return;
         }
 
+        // Reconciliação: garante hashes da versão corrente em todas as linhas
+        // (o normalizador já grava a chave; aqui cobrimos resultados legados ou
+        // gravados por uma versão anterior da chave).
         $results = SourceResult::query()
             ->whereHas('sourceRun', fn ($q) => $q->where('investigation_run_id', $run->id))
-            ->whereNull('dedup_hash')
             ->get();
 
         foreach ($results as $result) {
-            $result->dedup_hash = $deduplicator->dedupHash($result);
-            $result->save();
+            if ($result->dedup_hash === null || ($result->metadata['dedup_key_version'] ?? null) !== ResultDeduplicator::KEY_VERSION) {
+                $deduplicator->stamp($result);
+                $result->save();
+            }
         }
 
         $run->markPipelineStage('normalized_at');

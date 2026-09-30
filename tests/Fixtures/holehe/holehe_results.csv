@@ -1,0 +1,8 @@
+name,domain,method,frequent_rate_limit,rateLimit,exists,emailrecovery,phoneNumber,others
+aboutme,about.me,register,False,True,False,,,
+github,github.com,register,False,True,True,pa***@example.test,,{"url":"https://github.com"}
+amazon,amazon.com,login,False,True,False,,,
+spotify,spotify.com,register,False,True,True,,+5511***1234,{"country":"BR"}
+anydo,any.do,,,True,False,,,
+broken,,register,False,True,True,secret@example.test,,
+notdomain,not-a-domain,register,False,True,True,,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InsufficientCreditsException;
 use App\Http\Requests\StoreInvestigationRequest;
 use App\Models\Investigation;
 use App\Models\SourceDefinition;
@@ -40,6 +41,12 @@ class InvestigationController extends Controller
                 $request->input('modules', []),
                 $request->input('title'),
             );
+        } catch (InsufficientCreditsException $e) {
+            return back()->withInput()->withErrors([
+                'modules' => __('Saldo insuficiente para executar a investigação: são necessários :requested créditos.', [
+                    'requested' => $e->requested,
+                ]),
+            ]);
         } catch (\InvalidArgumentException $e) {
             return back()->withInput()->withErrors(['modules' => $e->getMessage()]);
         }
@@ -49,13 +56,44 @@ class InvestigationController extends Controller
 
     public function show(Request $request, Investigation $investigation): View
     {
+        // Avulsa (prompt 41) pertence apenas ao token: contas comuns recebem 404
+        // (não revela existência); o admin segue podendo inspecionar no painel.
+        abort_if($investigation->isGuest() && ! $request->user()->is_admin, 404);
+
         $this->authorize('view', $investigation);
 
         $investigation->load([
             'runs.sourceRuns.sourceDefinition',
             'runs.sourceRuns.sourceResults.evidence',
+            'runs.report',
         ]);
 
         return view('investigations.show', compact('investigation'));
+    }
+
+    /**
+     * Reexecução controlada: cria um novo run com custo independente.
+     */
+    public function rerun(Request $request, Investigation $investigation): RedirectResponse
+    {
+        abort_if($investigation->isGuest() && ! $request->user()->is_admin, 404);
+
+        $this->authorize('rerun', $investigation);
+
+        try {
+            $this->service->rerun($request->user(), $investigation);
+        } catch (InsufficientCreditsException $e) {
+            return back()->withErrors([
+                'rerun' => __('Saldo insuficiente para reexecutar a investigação: são necessários :requested créditos.', [
+                    'requested' => $e->requested,
+                ]),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['rerun' => $e->getMessage()]);
+        }
+
+        return redirect()
+            ->route('investigations.show', $investigation)
+            ->with('status', __('Nova execução iniciada. O run anterior permanece disponível para auditoria.'));
     }
 }

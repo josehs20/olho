@@ -7,6 +7,7 @@ use App\Sources\Exceptions\SourceUnavailableException;
 use App\Sources\InvestigationContext;
 use App\Sources\InvestigationInput;
 use App\Sources\InvestigationSource;
+use App\Sources\SourceOutcome;
 use App\Sources\SourceResult;
 
 /**
@@ -34,16 +35,16 @@ abstract class MockSource implements InvestigationSource
 
     abstract public function supports(InvestigationInput $input): bool;
 
-    public function execute(InvestigationContext $context): array
+    public function execute(InvestigationContext $context): SourceOutcome
     {
         $value = $this->scenarioValue($context->input);
 
-        return match ($value) {
+        return SourceOutcome::of(match ($value) {
             'timeout' => throw new SourceTimeoutException($this->key().' timeout'),
             'error' => throw new SourceUnavailableException($this->key().' unavailable'),
             'empty', null => [],
             default => $this->buildResults($value),
-        };
+        });
     }
 
     public function normalize(array $raw): SourceResult

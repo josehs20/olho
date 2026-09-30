@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\StartInvestigationRunJob;
 use App\Models\SourceDefinition;
 use App\Models\User;
+use App\Models\Wallet;
 use App\Services\InvestigationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -31,6 +32,7 @@ class InvestigationTest extends TestCase
         Queue::fake();
 
         $user = User::factory()->create();
+        Wallet::factory()->create(['user_id' => $user->id, 'balance' => 10]);
         SourceDefinition::factory()->create(['slug' => 'm', 'type' => 'username']);
 
         $response = $this->actingAs($user)->post('/investigations', [
@@ -46,6 +48,7 @@ class InvestigationTest extends TestCase
     public function test_user_cannot_view_another_users_investigation(): void
     {
         $userA = User::factory()->create();
+        Wallet::factory()->create(['user_id' => $userA->id, 'balance' => 10]);
         $userB = User::factory()->create();
         SourceDefinition::factory()->create(['slug' => 'm', 'type' => 'username']);
 

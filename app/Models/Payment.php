@@ -23,6 +23,14 @@ class Payment extends Model
         ];
     }
 
+    /**
+     * Pedido avulso (prompt 41): sem usuário, vinculado a uma investigação.
+     */
+    public function isGuest(): bool
+    {
+        return $this->guest_investigation_id !== null;
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -31,6 +39,11 @@ class Payment extends Model
     public function creditPackage(): BelongsTo
     {
         return $this->belongsTo(CreditPackage::class);
+    }
+
+    public function guestInvestigation(): BelongsTo
+    {
+        return $this->belongsTo(Investigation::class, 'guest_investigation_id');
     }
 
     public function paymentEvents(): HasMany

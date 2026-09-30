@@ -48,7 +48,7 @@
                                             {{ $investigation->title }}
                                         </a>
                                         <span class="rounded-full px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700">
-                                            {{ $investigation->status }}
+                                            {{ __((string) $investigation->status) }}
                                         </span>
                                     </li>
                                 @endforeach
@@ -73,7 +73,7 @@
                                             <p class="text-xs text-gray-500">{{ $payment->created_at->format('d/m/Y H:i') }}</p>
                                         </div>
                                         <span class="rounded-full px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700">
-                                            {{ $payment->status }}
+                                            {{ __((string) $payment->status) }}
                                         </span>
                                     </li>
                                 @endforeach

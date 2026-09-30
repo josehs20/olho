@@ -6,7 +6,9 @@ use App\Services\SourceCache;
 use App\Sources\InvestigationContext;
 use App\Sources\InvestigationInput;
 use App\Sources\Mocks\MockUsernameSource;
+use App\Sources\SourceOutcome;
 use App\Sources\SourceResult;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class SourceCacheTest extends TestCase
@@ -27,20 +29,41 @@ class SourceCacheTest extends TestCase
 
         $calls = 0;
 
-        $first = $cache->remember($source, $input, function () use (&$calls) {
+        $produce = function () use (&$calls, $source, $input) {
             $calls++;
 
-            return ['result'];
-        });
+            return $source->execute(new InvestigationContext($input));
+        };
 
-        $second = $cache->remember($source, $input, function () use (&$calls) {
-            $calls++;
-
-            return ['result'];
-        });
+        $first = $cache->remember($source, $input, $produce);
+        $second = $cache->remember($source, $input, $produce);
 
         $this->assertSame(1, $calls);
-        $this->assertSame($first, $second);
+        $this->assertEquals($first, $second);
+    }
+
+    public function test_cached_payload_contains_no_php_objects(): void
+    {
+        $cache = app(SourceCache::class);
+        $source = new MockUsernameSource;
+        $input = new InvestigationInput(username: 'joao');
+
+        $cache->remember($source, $input, fn () => $source->execute(new InvestigationContext($input)));
+
+        $payload = Cache::get($cache->key($source, $input));
+
+        $this->assertIsArray($payload);
+        $this->assertSame(['findings', 'warnings', 'metadata'], array_keys($payload));
+        $this->assertNotEmpty($payload['findings']);
+
+        foreach ($payload['findings'] as $finding) {
+            // Objetos no cache viram `__PHP_Incomplete_Class` com
+            // `config/cache.php` → `serializable_classes => false`.
+            $this->assertIsArray($finding);
+        }
+
+        // A chave carrega a versão do payload para invalidar formatos antigos.
+        $this->assertStringStartsWith('source:mock-username:v1:p2:', $cache->key($source, $input));
     }
 
     public function test_different_input_uses_different_cache_key(): void
@@ -54,15 +77,16 @@ class SourceCacheTest extends TestCase
         $this->assertNotSame($a, $b);
     }
 
-    public function test_caches_source_result_dtos(): void
+    public function test_remember_returns_source_outcome_with_dtos(): void
     {
         $cache = app(SourceCache::class);
         $source = new MockUsernameSource;
         $input = new InvestigationInput(username: 'joao');
 
-        $results = $cache->remember($source, $input, fn () => $source->execute(new InvestigationContext($input)));
+        $outcome = $cache->remember($source, $input, fn () => $source->execute(new InvestigationContext($input)));
 
-        $this->assertNotEmpty($results);
-        $this->assertInstanceOf(SourceResult::class, $results[0]);
+        $this->assertInstanceOf(SourceOutcome::class, $outcome);
+        $this->assertNotEmpty($outcome->findings);
+        $this->assertInstanceOf(SourceResult::class, $outcome->findings[0]);
     }
 }

@@ -27,19 +27,20 @@ class SherlockMockAdapterTest extends TestCase
 
     public function test_found_scenario_returns_multiple_profiles(): void
     {
-        $results = (new SherlockMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'joao')));
+        $findings = (new SherlockMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'joao')))->findings;
 
-        $this->assertGreaterThan(1, count($results));
-        $this->assertSame('social_profile', $results[0]->entityType);
-        $this->assertSame('joao', $results[0]->value);
-        $this->assertSame('sherlock', $results[0]->source);
+        $this->assertGreaterThan(1, count($findings));
+        $this->assertSame('social_profile', $findings[0]->entityType);
+        $this->assertSame('joao', $findings[0]->value);
+        $this->assertSame('sherlock', $findings[0]->source);
     }
 
     public function test_not_found_scenario_returns_empty(): void
     {
-        $results = (new SherlockMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'not_found')));
+        $outcome = (new SherlockMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'not_found')));
 
-        $this->assertSame([], $results);
+        $this->assertTrue($outcome->isEmpty());
+        $this->assertSame([], $outcome->findings);
     }
 
     public function test_timeout_scenario_throws(): void

@@ -59,3 +59,19 @@ checkout
 Nunca considerar o frontend como fonte de verdade sobre pagamento.
 Não armazenar dados de cartão.
 Não imprimir chave PIX real nos logs.
+
+
+## Investigação avulsa (prompt 41)
+
+- O preço fixo da avulsa é a linha ativa `kind = guest_investigation` de
+  `credit_packages`, editável em `/admin/packages`; o valor pago fica congelado em
+  `investigations.guest_price_cents`.
+- `PaymentService::checkoutGuest()` cria **um** pedido por investigação
+  (`guest_investigation_id` único + chave de idempotência
+  `guest-investigation-{id}`), sem usuário (`payments.user_id` nullable) e reusando
+  o mesmo provedor PIX (`PaymentProvider`/`FakePixProvider`) e `payment_events`.
+- Ao confirmar o pagamento, o pedido avulso **não credita créditos**: libera a
+  execução da investigação (`GuestInvestigationService::release()`), de forma
+  idempotente. Pedidos de conta seguem creditando o pacote.
+- Não existe rota que aceite "pago" do front; a confirmação vem do webhook do
+  gateway (ou da simulação, apenas com `PAYMENT_PROVIDER=fake`).

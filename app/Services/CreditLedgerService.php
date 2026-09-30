@@ -78,12 +78,23 @@ class CreditLedgerService
 
     /**
      * Reserva créditos (débito atômico com lock). Cria reserva + entrada de ledger.
+     *
+     * `$source` identifica o módulo da reserva (cobrança por módulo, prompt 39):
+     * o encerramento do run consome apenas módulos concluídos e estorna os
+     * demais. A idempotency key garante que retries não gerem débito duplicado.
      */
-    public function reserve(User $user, Wallet $wallet, int $amount, ?InvestigationRun $run, string $idempotencyKey, ?Carbon $expiresAt = null): CreditReservation
-    {
+    public function reserve(
+        User $user,
+        Wallet $wallet,
+        int $amount,
+        ?InvestigationRun $run,
+        string $idempotencyKey,
+        ?Carbon $expiresAt = null,
+        ?string $source = null,
+    ): CreditReservation {
         $this->assertPositive($amount);
 
-        return DB::transaction(function () use ($user, $wallet, $amount, $run, $idempotencyKey, $expiresAt) {
+        return DB::transaction(function () use ($user, $wallet, $amount, $run, $idempotencyKey, $expiresAt, $source) {
             $wallet = Wallet::query()->whereKey($wallet->getKey())->lockForUpdate()->firstOrFail();
 
             if ($reservation = CreditReservation::query()->where('idempotency_key', $idempotencyKey)->first()) {
@@ -115,6 +126,7 @@ class CreditLedgerService
                 'wallet_id' => $wallet->id,
                 'user_id' => $user->id,
                 'investigation_run_id' => $run?->id,
+                'source' => $source,
                 'amount' => $amount,
                 'status' => 'pending',
                 'idempotency_key' => $idempotencyKey,

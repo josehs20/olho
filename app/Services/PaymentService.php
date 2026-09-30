@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CreditPackage;
+use App\Models\Investigation;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
 use App\Models\User;
@@ -18,6 +19,7 @@ class PaymentService
     public function __construct(
         private readonly PaymentProvider $provider,
         private readonly CreditLedgerService $credits,
+        private readonly GuestInvestigationService $guests,
     ) {}
 
     /**
@@ -29,6 +31,10 @@ class PaymentService
             throw new \InvalidArgumentException('Pacote inativo.');
         }
 
+        if ($package->isGuestKind()) {
+            throw new \InvalidArgumentException('O preço da investigação avulsa não é vendido como pacote de créditos.');
+        }
+
         return DB::transaction(function () use ($user, $package) {
             $payment = Payment::query()->create([
                 'user_id' => $user->id,
@@ -37,6 +43,49 @@ class PaymentService
                 'amount_cents' => $package->price_cents,
                 'status' => PaymentStatus::Pending->value,
                 'idempotency_key' => (string) Str::uuid(),
+            ]);
+
+            return $this->startCharge($payment);
+        });
+    }
+
+    /**
+     * Cria o pedido e a cobrança PIX da investigação avulsa (prompt 41).
+     *
+     * Preço fixo pago antes, **sem consumo de créditos**: "pagou, usou, acabou".
+     * Idempotente por investigação — uma avulsa tem no máximo um pedido.
+     */
+    public function checkoutGuest(Investigation $investigation, CreditPackage $package): Payment
+    {
+        if (! $investigation->isGuest()) {
+            throw new \InvalidArgumentException('A investigação informada não é avulsa.');
+        }
+
+        if ($investigation->status !== Investigation::STATUS_DRAFT) {
+            throw new \InvalidArgumentException('Esta investigação avulsa não está aguardando pagamento.');
+        }
+
+        if (! $package->isGuestKind() || ! $package->active) {
+            throw new \InvalidArgumentException('Preço da investigação avulsa indisponível.');
+        }
+
+        return DB::transaction(function () use ($investigation, $package) {
+            $existing = Payment::query()
+                ->where('guest_investigation_id', $investigation->id)
+                ->first();
+
+            if ($existing !== null) {
+                return $existing;
+            }
+
+            $payment = Payment::query()->create([
+                'user_id' => null,
+                'guest_investigation_id' => $investigation->id,
+                'credit_package_id' => $package->id, // rastreabilidade do preço aplicado
+                'provider' => (string) config('payments.provider'),
+                'amount_cents' => (int) ($investigation->guest_price_cents ?? $package->price_cents),
+                'status' => PaymentStatus::Pending->value,
+                'idempotency_key' => 'guest-investigation-'.$investigation->id,
             ]);
 
             return $this->startCharge($payment);
@@ -124,7 +173,12 @@ class PaymentService
                 $payment->paid_at = now();
                 $payment->save();
 
-                $this->grantCredits($payment);
+                if ($payment->isGuest()) {
+                    // Avulsa: preço fixo pago libera a execução (nenhum crédito).
+                    $this->guests->release($payment);
+                } else {
+                    $this->grantCredits($payment);
+                }
             }
 
             return $payment;

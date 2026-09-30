@@ -12,10 +12,34 @@
                     <div class="flex items-center justify-between">
                         <p class="text-sm text-gray-500">
                             {{ __('Status') }}:
-                            <span class="font-semibold">{{ $investigation->status }}</span>
+                            <span class="font-semibold">{{ __((string) $investigation->status) }}</span>
                         </p>
                         <p class="text-sm text-gray-500">{{ $investigation->created_at->format('d/m/Y H:i') }}</p>
                     </div>
+
+                    @if (session('status'))
+                        <p class="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-800">{{ session('status') }}</p>
+                    @endif
+
+                    @if ($errors->any())
+                        <ul class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+
+                    @if (in_array($investigation->status, ['completed', 'partial', 'failed', 'cancelled', 'expired'], true))
+                        <form method="POST" action="{{ route('investigations.rerun', $investigation) }}" class="mt-4">
+                            @csrf
+                            <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                                {{ __('Reexecutar investigação') }}
+                            </button>
+                            <span class="ml-2 text-xs text-gray-500">
+                                {{ __('Cria um novo run com custo independente; o run anterior permanece auditável.') }}
+                            </span>
+                        </form>
+                    @endif
 
                     <h3 class="mt-6 text-lg font-semibold text-gray-900">{{ __('Execuções') }}</h3>
                     <ul class="mt-3 divide-y divide-gray-200">
@@ -23,11 +47,18 @@
                             <li class="flex items-center justify-between py-3">
                                 <div>
                                     <p class="text-sm font-medium text-gray-900">{{ __('Run') }} #{{ $run->run_number }}</p>
-                                    <p class="text-sm text-gray-500">{{ __('Status') }}: {{ $run->status }}</p>
+                                    <p class="text-sm text-gray-500">{{ __('Status') }}: {{ __((string) $run->status) }}</p>
                                 </div>
-                                <p class="text-sm text-gray-500">
-                                    {{ __('Créditos') }}: {{ $run->credits_consumed }} / {{ $run->credits_reserved }}
-                                </p>
+                                <div class="flex items-center gap-4">
+                                    <p class="text-sm text-gray-500">
+                                        {{ __('Créditos') }}: {{ $run->credits_consumed }} / {{ $run->credits_reserved }}
+                                    </p>
+                                    @if ($run->report)
+                                        <a href="{{ route('investigations.report', [$investigation, $run]) }}" class="text-sm text-indigo-600 hover:underline">
+                                            {{ __('Relatório') }}
+                                        </a>
+                                    @endif
+                                </div>
                             </li>
                         @endforeach
                     </ul>

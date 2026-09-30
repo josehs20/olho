@@ -12,7 +12,7 @@
                     <div class="flex items-center justify-between">
                         <h3 class="text-lg font-semibold text-gray-900">{{ __('Pedido') }} #{{ $payment->id }}</h3>
                         <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $payment->status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
-                            {{ $payment->status }}
+                            {{ __((string) $payment->status) }}
                         </span>
                     </div>
 

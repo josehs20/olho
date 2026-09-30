@@ -53,3 +53,20 @@ Nunca logar:
 ## Workers
 
 Limitar CPU/memória/timeout conforme Docker e configuração do worker. Um processo externo travado não deve travar o web app.
+
+
+## Investigação avulsa (prompt 41)
+
+- Token de 256 bits (`random_bytes`), persistido apenas como SHA-256; formato
+  inválido é rejeitado antes de qualquer consulta (sem enumeração útil).
+- Nenhuma rota aceita o id da investigação avulsa; o token mapeia exatamente uma
+  investigação (sem IDOR) e o relatório é derivado dele.
+- Páginas com token: `Cache-Control: no-store`, `Pragma: no-cache` e
+  `X-Robots-Tag: noindex, nofollow, noarchive`.
+- Limites: `guest-create` (5/min + 20/h por IP) e `guest-access` (60/min por IP +
+  30/min por hash de token).
+- Liberação da execução somente por evento de pagamento verificado (webhook) ou
+  pela simulação do provider fake; CSRF habilitado nas rotas web.
+- Rotas autenticadas de investigação/relatório respondem 404 para avulsa
+  (não-admin), evitando revelar a existência; a policy nega `view` (não-admin) e
+  `rerun` (todos).

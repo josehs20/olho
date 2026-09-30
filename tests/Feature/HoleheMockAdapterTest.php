@@ -27,20 +27,21 @@ class HoleheMockAdapterTest extends TestCase
 
     public function test_found_scenario_returns_services(): void
     {
-        $results = (new HoleheMockAdapter)->execute(new InvestigationContext(new InvestigationInput(email: 'a@b.c')));
+        $findings = (new HoleheMockAdapter)->execute(new InvestigationContext(new InvestigationInput(email: 'a@b.c')))->findings;
 
-        $this->assertGreaterThan(2, count($results));
-        $this->assertSame('email_account', $results[0]->entityType);
-        $this->assertSame('a@b.c', $results[0]->value);
-        $this->assertSame('holehe', $results[0]->source);
-        $this->assertSame('twitter.com', $results[0]->metadata['service']);
+        $this->assertGreaterThan(2, count($findings));
+        $this->assertSame('email_account', $findings[0]->entityType);
+        $this->assertSame('a@b.c', $findings[0]->value);
+        $this->assertSame('holehe', $findings[0]->source);
+        $this->assertSame('twitter.com', $findings[0]->metadata['service']);
     }
 
     public function test_not_found_scenario_returns_empty(): void
     {
-        $results = (new HoleheMockAdapter)->execute(new InvestigationContext(new InvestigationInput(email: 'not_found')));
+        $outcome = (new HoleheMockAdapter)->execute(new InvestigationContext(new InvestigationInput(email: 'not_found')));
 
-        $this->assertSame([], $results);
+        $this->assertTrue($outcome->isEmpty());
+        $this->assertSame([], $outcome->findings);
     }
 
     public function test_timeout_scenario_throws(): void

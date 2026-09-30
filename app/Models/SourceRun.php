@@ -13,15 +13,43 @@ class SourceRun extends Model
 
     protected $guarded = [];
 
+    /**
+     * Mantém a denormalização consistente: toda execução registra a investigação
+     * e o slug da fonte (snapshot), mesmo quando criada por factory, de modo que
+     * o histórico permaneça legível sem depender de joins.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (SourceRun $sourceRun): void {
+            if ($sourceRun->investigation_id === null && $sourceRun->investigation_run_id !== null) {
+                $sourceRun->investigation_id = InvestigationRun::query()
+                    ->whereKey($sourceRun->investigation_run_id)
+                    ->value('investigation_id');
+            }
+
+            if ($sourceRun->source === null && $sourceRun->source_definition_id !== null) {
+                $sourceRun->source = SourceDefinition::query()
+                    ->whereKey($sourceRun->source_definition_id)
+                    ->value('slug');
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [
-            'attempt' => 'integer',
+            'attempts' => 'integer',
+            'result_count' => 'integer',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
             'duration_ms' => 'integer',
             'metrics' => 'array',
         ];
+    }
+
+    public function investigation(): BelongsTo
+    {
+        return $this->belongsTo(Investigation::class);
     }
 
     public function investigationRun(): BelongsTo

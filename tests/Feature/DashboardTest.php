@@ -47,6 +47,6 @@ class DashboardTest extends TestCase
         $response->assertSee('75');
         $response->assertSee('Pesquisa Joao');
         $response->assertSee('R$ 30,00');
-        $response->assertSee('paid');
+        $response->assertSee('pago');
     }
 }

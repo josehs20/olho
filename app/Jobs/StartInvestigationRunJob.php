@@ -7,9 +7,11 @@ use App\Models\Investigation;
 use App\Models\InvestigationRun;
 use App\Models\SourceDefinition;
 use App\Models\Wallet;
+use App\Payments\PaymentStatus;
 use App\Services\CreditLedgerService;
+use App\Services\InvestigationOrchestrator;
 use App\Services\LogSanitizer;
-use App\Sources\SourceRunStatus;
+use App\Sources\InvestigationInput;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -32,78 +34,143 @@ class StartInvestigationRunJob implements ShouldBeUnique, ShouldQueue
         return 'start-run-'.$this->investigationRunId;
     }
 
-    public function handle(CreditLedgerService $credits, LogSanitizer $sanitizer): void
-    {
+    public function handle(
+        CreditLedgerService $credits,
+        InvestigationOrchestrator $orchestrator,
+        LogSanitizer $sanitizer,
+    ): void {
         $run = InvestigationRun::findOrFail($this->investigationRunId);
 
+        // Idempotência: apenas um run pendente inicia a execução.
         if ($run->status !== InvestigationRun::STATUS_PENDING) {
             return;
         }
 
         $investigation = $run->investigation;
-        $user = $investigation->user;
-        $moduleSlugs = $run->input_snapshot['modules'] ?? $investigation->selected_modules ?? [];
+        $isGuest = $investigation->isGuest();
 
-        $sources = SourceDefinition::query()
+        // (0) Avulsa (prompt 41): "pagou, usou, acabou". O run nasce no rascunho e
+        // só é despachado após a confirmação do pagamento; esta guarda é a segunda
+        // camada — sem pagamento pago nada é executado (e nada é cobrado).
+        if ($isGuest && ! $this->guestIsPaid($investigation)) {
+            $this->fail(
+                $orchestrator,
+                $sanitizer,
+                $run,
+                'unpaid_guest_investigation',
+                'Aguardando confirmação do pagamento.',
+            );
+
+            return;
+        }
+
+        $user = $investigation->user;
+        $moduleSlugs = $run->moduleSlugs() ?: ($investigation->selected_modules ?? []);
+        $input = InvestigationInput::fromArray($run->input_snapshot ?? []);
+
+        $definitions = SourceDefinition::query()
             ->whereIn('slug', $moduleSlugs)
             ->where('active', true)
             ->get();
 
-        $totalCost = (int) $sources->sum('cost_credits');
+        // (3) Determina os módulos aplicáveis ao tipo de identificador; os
+        // demais serão registrados como `skipped` (limitação observável).
+        $selection = $orchestrator->split($definitions, $input);
+        $totalCost = (int) $selection['applicable']->sum('cost_credits');
 
-        $run->status = InvestigationRun::STATUS_RUNNING;
-        $run->started_at = now();
-        $run->credits_reserved = $totalCost;
-        $run->save();
+        if ($selection['applicable']->isEmpty()) {
+            $this->fail(
+                $orchestrator,
+                $sanitizer,
+                $run,
+                'no_applicable_modules',
+                'Nenhum módulo aplicável aos dados informados.',
+            );
 
-        $investigation->status = Investigation::STATUS_RUNNING;
-        $investigation->save();
+            return;
+        }
 
-        if ($totalCost > 0) {
+        // (1) Valida/reserva créditos de forma atômica antes de qualquer execução.
+        //     Reserva por módulo: o encerramento consome só o que foi concluído.
+        //     A avulsa é pré-paga em dinheiro: nenhum crédito é reservado/consumido.
+        if (! $isGuest && $totalCost > 0) {
+            $wallet = Wallet::query()->firstOrCreate(['user_id' => $user->id], ['balance' => 0]);
+
             try {
-                $wallet = Wallet::query()->firstOrCreate(['user_id' => $user->id], ['balance' => 0]);
-
-                $credits->reserve($user, $wallet, $totalCost, $run, 'run-reserve-'.$run->id, now()->addHour());
-            } catch (InsufficientCreditsException $e) {
-                $this->failRun($run, $investigation, 'Saldo insuficiente para executar a investigação.');
-
-                Log::channel('investigations')->warning('run.failed', $sanitizer->sanitize([
-                    'investigation_run_id' => $run->id,
-                    'reason' => 'insufficient_credits',
-                ]));
+                $orchestrator->reserveCredits(
+                    $credits,
+                    $user,
+                    $wallet,
+                    $run,
+                    $selection['applicable'],
+                    now()->addHour(),
+                );
+            } catch (InsufficientCreditsException) {
+                $this->fail(
+                    $orchestrator,
+                    $sanitizer,
+                    $run,
+                    'insufficient_credits',
+                    'Saldo insuficiente para executar a investigação.',
+                );
 
                 return;
             }
         }
 
-        foreach ($sources as $source) {
-            $sourceRun = $run->sourceRuns()->create([
-                'source_definition_id' => $source->id,
-                'status' => SourceRunStatus::Pending->value,
-            ]);
+        // (2) Abre a execução.
+        $run->status = InvestigationRun::STATUS_RUNNING;
+        $run->started_at = now();
+        $run->credits_reserved = $isGuest ? 0 : $totalCost;
+        $run->save();
 
+        $investigation->status = Investigation::STATUS_RUNNING;
+        $investigation->save();
+
+        // (4) Cria todos os registros de execução por módulo antes de despachar.
+        // Sem isso, com fila síncrona (ou múltiplos workers concorrentes) o
+        // primeiro ExecuteSourceJob pode concluir e disparar o restante do
+        // pipeline antes de os demais source_runs existirem — finalizando o run
+        // prematuramente.
+        $sourceRuns = $orchestrator->createSourceRuns($run, $selection['applicable'], $selection['skipped']);
+        $run->markPipelineStage('sources_created_at');
+
+        // (5) Envia os jobs para a fila.
+        foreach ($sourceRuns as $sourceRun) {
             ExecuteSourceJob::dispatch($sourceRun->id);
         }
 
         Log::channel('investigations')->info('run.started', $sanitizer->sanitize([
             'investigation_run_id' => $run->id,
-            'sources' => $sources->count(),
-            'credits_reserved' => $totalCost,
+            'funding' => $isGuest ? 'guest_prepaid' : 'credits',
+            'sources' => $sourceRuns->count(),
+            'skipped_sources' => $selection['skipped']->count(),
+            'credits_reserved' => $run->credits_reserved,
         ]));
-
-        if ($sources->isEmpty()) {
-            $this->failRun($run, $investigation, 'Nenhum módulo ativo para executar.');
-        }
     }
 
-    private function failRun(InvestigationRun $run, Investigation $investigation, string $message): void
+    /**
+     * A avulsa só executa com o pagamento confirmado no backend.
+     */
+    private function guestIsPaid(Investigation $investigation): bool
     {
-        $run->status = InvestigationRun::STATUS_FAILED;
-        $run->finished_at = now();
-        $run->error_summary = $message;
-        $run->save();
+        return $investigation->guestPayment()
+            ->where('status', PaymentStatus::Paid->value)
+            ->exists();
+    }
 
-        $investigation->status = Investigation::STATUS_FAILED;
-        $investigation->save();
+    private function fail(
+        InvestigationOrchestrator $orchestrator,
+        LogSanitizer $sanitizer,
+        InvestigationRun $run,
+        string $reason,
+        string $summary,
+    ): void {
+        $orchestrator->markFailed($run, $reason, $summary);
+
+        Log::channel('investigations')->warning('run.failed', $sanitizer->sanitize([
+            'investigation_run_id' => $run->id,
+            'reason' => $reason,
+        ]));
     }
 }

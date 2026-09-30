@@ -260,3 +260,212 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - Auditoria integral registrada em `AUDIT.md` (classificação por requisito, pendências e próximos passos).
 - Estado final: 165 testes passando, Pint PASS, 56 rotas, 27 commits, migrations aplicadas.
 - Pendências principais: RF-17 (reexecução), purga por retenção, landing page, uploads (fora do MVP), `entities`/`entity_identifiers`.
+
+## Ajustes pós-etapa 27 — Login sem verificação de e-mail e interface em pt-BR
+
+- **Verificação de e-mail desativada** (facilitar a criação de conta):
+  - `User` não implementa mais `MustVerifyEmail`; removido o middleware `verified` de `/dashboard`, da área do usuário e de `/admin`.
+  - Removidas as rotas `verification.*`, os controllers de verificação, a view `auth.verify-email` e o formulário de reenvio no perfil.
+  - `RegisteredUserController` não dispara mais o evento `Registered`; `ProfileController` não zera mais `email_verified_at` ao trocar o e-mail.
+  - Cobertura: `NoEmailVerificationTest` (acesso imediato após registro e para usuário não verificado, inclusive admin).
+- **Interface em pt-BR**:
+  - `APP_LOCALE`/`APP_FALLBACK_LOCALE=pt_BR` no `.env`/`.env.example` e padrões em `config/app.php`.
+  - Novos `lang/pt_BR/{validation,auth,passwords,pagination}.php` e `lang/pt_BR.json` (textos do Breeze, paginação e rótulos de status do domínio).
+  - `Carbon::setLocale()` em `AppServiceProvider` para `diffForHumans()`/datas relativas em português.
+  - `welcome.blade.php` reescrita como landing page em português; status de investigação/run/fonte/pagamento exibidos via `__()`.
+  - Cobertura: `LocalizationTest` (mensagens de validação, login, status).
+- **Seeder de demonstração**: `DemoUsersSeeder` aceita senhas por parâmetro (testes determinísticos) e imprime as credenciais resolvidas em `local`.
+
+
+## Popular o banco — seeders e factories
+
+- **Factories**: adicionados *states* de domínio e defaults usando enums/constantes dos models —
+  `Payment` (`paid`/`awaitingPayment`/`expired`), `Investigation` (`queued`/`running`/`completed`/`partial`/`failed`),
+  `InvestigationRun` (idem), `SourceRun` (`completed`/`failed`/`timeout`) e `Report` (`completed`).
+  Factories seguem sendo a ferramenta para testes pontuais; seeders montam o conjunto coerente.
+- **Seeders novos**:
+  - `SourceDefinitionSeeder` — 7 fontes de referência (uma por adapter do `SourceRegistry`). Sem elas, `/investigations/create` não oferece módulos e o pipeline não executa. Determinístico, idempotente e **preserva `active`** (não reativa fonte desligada pelo admin).
+  - `CreditPackageSeeder` — 3 pacotes iniciais; também preserva `active`.
+  - `DemoDataSeeder` — dataset de demonstração usando os **serviços reais**: `PaymentService` (PIX fake: 1 pagamento pago + 1 aguardando), `InvestigationService` (4 cenários executando o pipeline de verdade — 3 concluídos e 1 `partial` com timeout isolado de fonte, demonstrando que uma falha não derruba a investigação), relatórios, correlação, `AuditLogger` e top-up idempotente de créditos. O pipeline roda com `queue.default=sync` + `cache.default=array` para a seed terminar com os dados já processados.
+  - `Support/DemoAccounts` — resolução compartilhada de nome/e-mail das contas `DEMO_*`/`ADMIN_*`.
+- `DatabaseSeeder` passa a orquestrar: referência → contas → dados. Tudo idempotente e bloqueado em produção.
+- Cobertura: `ReferenceDataSeederTest` (adapters cobertos, tipos, idempotência e preservação do toggle do admin) e `DemoDataSeederTest` (pipeline, relatórios, consistência saldo × ledger, pagamentos e idempotência).
+
+## Etapa 28 — Diagnóstico e E2E com mocks
+
+- **Diagnóstico do ambiente real** (Docker): 6 serviços `Up` (`app`, `web`, `worker`, `scheduler`, `mysql` healthy, `redis` healthy); Laravel 13.34 / PHP 8.5.11; MySQL com 15 migrations aplicadas; Redis `PONG`; fila `redis` vazia (0 pendentes/reservadas/atrasadas); scheduler com `credits:release-expired` a cada 5 min; 56 rotas.
+- **Fluxo mapeado**: `Investigation` → `InvestigationRun` → `source_runs` → adapter mock → `source_results`/`evidence` → normalização → deduplicação → correlação (`metadata.correlation`) → `reports` → liquidação de créditos, com etapas idempotentes em `metadata.pipeline`.
+- **E2E com mocks**: executado no ambiente Docker (MySQL + Redis + worker) e coberto por teste automatizado novo `InvestigationE2EMockTest` (sem `Queue::fake`, cadeia real de jobs em fila síncrona) — 7 adapters mock em uma execução e cenário de fonte indisponível.
+- **Defeitos encontrados e corrigidos** (mínimos, sem refatorar o domínio):
+  1. `SourceCache` gravava objetos `SourceResult` no cache; com `config/cache.php → 'serializable_classes' => false` a leitura em Redis devolvia `__PHP_Incomplete_Class` e o `ExecuteSourceJob` falhava na 2ª execução da mesma entrada. Agora o cache guarda apenas primitivos/arrays (`payload` ↔ DTO) e a chave carrega a versão do payload (`p1`) para invalidar formatos antigos.
+  2. `StartInvestigationRunJob` despachava `ExecuteSourceJob` dentro do mesmo laço que criava os `source_runs`. Com fila síncrona (usada pelo `DemoDataSeeder`) ou múltiplos workers, a primeira fonte podia concluir e disparar o restante do pipeline antes de os demais `source_runs` existirem, finalizando o run como `completed` mesmo com fonte em `timeout`. Agora todos os `source_runs` são criados antes de qualquer despacho.
+  3. `ExecuteSourceJob` não era retry-safe: um job que falhava depois de marcar a fonte como `running` tinha o retry descartado pelo guard de status, prendendo o run em `running` e mantendo a reserva de créditos pendente. Agora uma tentativa interrompida é reexecutada, descartando os resultados parciais daquela fonte.
+- Cobertura nova: `InvestigationE2EMockTest` (fluxo completo e ordem de criação das fontes) e `SourceCacheTest::test_cached_payload_contains_no_php_objects`; `InvestigationPipelineTest` ganhou `test_execute_source_job_reexecutes_interrupted_attempt`.
+- Estado: 182 testes passando (611 assertions); Pint PASS (194 arquivos).
+
+## Etapa 29 — Contratos do pipeline
+
+- Diagnóstico dos contratos existentes entre `InvestigationService`, jobs, adapters, normalização, deduplicação, correlação e relatório (registrado em `docs/24-contratos-pipeline.md`).
+- **Contrato de entrada do adapter**: novo `SourceDescriptor` (`slug`, `type`, `timeout`, `config`) embutido em `InvestigationContext` (parâmetros opcionais, compatível com chamadas existentes). O orquestrador resolve tudo a partir de `source_definitions`; o adapter não acessa Eloquent/banco.
+- **Contrato de saída do adapter**: novo `SourceOutcome` (`findings` + `warnings` + `metadata`), agora o retorno de `InvestigationSource::execute()`. Status, duração e erro continuam sendo do orquestrador, garantindo histórico mesmo com falha (docs/20, docs/23). Os 7 adapters mock foram ajustados para o envelope, com comportamento idêntico.
+- **Contrato de erro**: novo `SourceNotRegisteredException extends SourceException` (`unavailable`/`failed`) lançada por `SourceRegistry::get()`. Antes, uma `source_definitions` sem adapter registrado lançava `InvalidArgumentException` e derrubava o job; agora a fonte vira falha isolada e o run termina como `partial`.
+- **Sem service locator**: `ExecuteSourceJob` recebe `SourceResultNormalizer` por injeção (antes era `app()` dentro de método privado) e persiste `metrics` (`findings_count`, `warnings`, `adapter`).
+- **Snapshot de entrada tipado**: `InvestigationRun::moduleSlugs()` substitui a leitura de `input_snapshot['modules']` espalhada pelo código.
+- **Cache tipado**: `SourceCache::remember()` passa a devolver `SourceOutcome` e cacheia `{findings, warnings, metadata}` como payload primitivo (versão `p2` da chave), preservando avisos/métricas em cache hit.
+- Cobertura nova: `PipelineContractTest` (5 cenários: descriptor sem banco, persistência de findings/evidências/métricas, fonte sem adapter → `partial`, erro de registro estruturado, cache preservando avisos) com `Tests\Support\RecordingSource`.
+- Estado: 187 testes passando (649 assertions); Pint PASS (199 arquivos); E2E ao vivo pelos 7 mocks validado (run `completed`, 22 resultados, métricas persistidas).
+
+## Etapa 30 — Orquestrador da investigação
+
+- Novo `App\Services\InvestigationOrchestrator` concentra as decisões de negócio do run (determinação de módulos, criação dos registros por módulo e desfecho); os jobs passam a apenas executar etapas e os controllers seguem sem lógica de negócio. Fluxo documentado em `docs/25-orquestrador-investigacao.md`.
+- **Determinação de módulos por identificador (passo 3)**: `split()` usa `InvestigationSource::supports()` quando o adapter existe e, sem adapter, o `source_definitions.type`. Módulo selecionado e não aplicável **não** rejeita mais a investigação: vira `source_run` `skipped` com `error_code = invalid_input` e aviso público (limitação observável, docs/02). Se nenhum módulo for aplicável, a criação é rejeitada com erro de formulário.
+- **Validação de créditos (passo 1)**: `InvestigationService` valida o saldo antes de criar a execução (`InsufficientCreditsException`), mantendo a reserva atômica com lock no `StartInvestigationRunJob`. O controller mapeia o erro para o formulário; nada é persistido quando falta saldo. A reserva considera **apenas** os módulos aplicáveis (módulo ignorado não é cobrado).
+- **Desfecho tri-estado (passo 11)**: `finalize()` decide `completed` (todas concluíram), `partial` (alguma falhou/timeout, docs/23) ou `failed` (nenhuma fonte concluiu — antes inalcançável). `markFailed()` cobre `insufficient_credits` e `no_applicable_modules`. `failed` libera a reserva; `completed`/`partial` consomem.
+- **Observabilidade**: `metadata.finalization` (`status`, `reason`, `counts` por status de fonte, `decided_at`), etapa `pipeline.sources_created_at` e logs `run.started` (com `skipped_sources`), `run.finalized` e `run.failed` no canal `investigations`.
+- Relatório: a seção "Falhas e limitações" passa a listar também fontes `skipped` (módulo não aplicável), conforme docs/08.
+- Testes: novo `InvestigationOrchestratorTest` (módulo não aplicável → `skipped`; desfecho nos 4 cenários; `markFailed`; POST sem créditos não cria nada) e ajustes em `InvestigationServiceTest`/`InvestigationTest` (carteira financiada) e `PipelineContractTest` (run sem fonte concluída agora é `failed` com reserva compensada).
+- Estado: 192 testes passando (699 assertions); Pint PASS (201 arquivos); E2E ao vivo validado (`holehe` ignorado por falta de e-mail, run `completed` com `finalization.counts.skipped = 1`).
+
+## Etapa 31 — Persistência da execução por módulo
+
+- Diagnóstico de `source_runs`: já registrava status/tempos/erro, mas faltavam identificação direta da investigação, snapshot da fonte, contagem de resultados, versão da ferramenta e a mensagem de erro não era sanitizada. Estrutura final documentada em `docs/26-persistencia-source-run.md`.
+- Migração `2026_09_30_000160_add_execution_details_to_source_runs_table`: adiciona `investigation_id` (FK denormalizada + índice), `source` (snapshot do slug), `result_count`, `tool_version`, renomeia `attempt` → `attempts` (default 0, agora "tentativas executadas") e faz **backfill** das execuções existentes a partir de `investigation_runs`, `source_definitions` e `source_results`.
+- **Mensagem de erro sanitizada**: novo `SourceErrorMapper::toPublicMessage()` deriva a mensagem pública do código de erro (`timeout`, `unavailable`, `blocked`, `invalid_input`), sem expor detalhe interno; o detalhe técnico vai apenas para o log sanitizado (`source.failed`).
+- `ExecuteSourceJob` passa a gravar `result_count`, `tool_version` (de `SourceOutcome.metadata`) e `attempts`; `metrics` fica restrito a avisos/metadados extras. `InvestigationOrchestrator::createSourceRuns()` grava `investigation_id`/`source`, e o hook `creating` do model `SourceRun` garante a denormalização em factories/seeders.
+- Relatório e painel admin exibem resultados/versão por fonte (admin também tentativas, duração e mensagem pública).
+- Testes: novo `SourceRunPersistenceTest` (sucesso, timeout, erro, retry e `skipped`) e ajuste do `PipelineContractTest`.
+- Estado: 197 testes passando (739 assertions); Pint PASS (203 arquivos); E2E ao vivo validado (`attempts=1`, `result_count`, `duration_ms` e mensagem pública sanitizada persistidos).
+
+## Etapa 32 — Integração real do Maigret
+
+- Verificações prévias (documentadas em `docs/27-maigret-integracao.md`): licença **MIT**, versão **0.6.6**, requer Python >= 3.10; instalação reproduzível no `docker/php/Dockerfile` (`apk add python3 py3-pip` + `pip install --break-system-packages maigret==0.6.6`, versão fixada por `ARG MAIGRET_VERSION`, sem dependências de build); binário em `/usr/bin/maigret`.
+- **Execução segura (docs/21)**: novo `App\Sources\Runners` (`ToolRunner` + `ProcessToolRunner` + `ToolCommand`/`ToolResult`) com argv separado (nunca shell), timeout obrigatório, diretório de trabalho isolado com `HOME` próprio, ambiente controlado (nada da aplicação vaza), captura limitada de stdout/stderr e código de saída explícito (`124` em timeout).
+- **Adapter real** `MaigretAdapter` (mesmo slug/contrato do mock): valida o username (`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`) antes de executar, roda `maigret <username> --id-type username --timeout N --top-sites N --max-connections N --no-color --no-progressbar --no-autoupdate --no-recursion --print-errors -J simple -fo <workdir>`, converte o relatório bruto pelo novo `MaigretReportParser` e limpa o diretório no `finally`. Timeout do processo = `min(MAIGRET_PROCESS_TIMEOUT, source_definitions.timeout)`.
+- **Contrato comum**: `MaigretReportParser` produz `SourceResult` (`social_profile`, `title` = site, `value` = username, `url` = perfil, `confidence` 0.8, evidência `public_profile_url`, metadados site/tags/http_status/rank); entradas sem URL válida são descartadas. Avisos `[!]` da ferramenta viram `warnings` → `source_runs.metrics.warnings`; a versão da ferramenta vai para `source_runs.tool_version` (prompt 31).
+- **Troca por configuração**: `config/sources.php` (novo) + `MAIGRET_DRIVER=process|mock`; o `AppServiceProvider` registra o adapter real ou o mock sob o mesmo slug `maigret`. `source_definitions.config` pode sobrepor as opções por fonte (contrato do prompt 29). `phpunit.xml` força `mock` para a suíte permanecer hermetica.
+- Testes: `MaigretReportParserTest` (fixture real), `MaigretAdapterTest` (argv, isolamento/limpeza, username insegura sem execução, timeout, relatório ausente, `normalize`, `healthCheck`, troca mock↔real) e `MaigretRealIntegrationTest` (execução real com identificador público institucional `python`, atrás de `MAIGRET_E2E=1`).
+- **Teste controlado real** (identificador público `python`): 12,5 s, 19 perfis encontrados; E2E ao vivo pela stack (MySQL + Redis + worker) → run `completed`, `source_runs.tool_version=0.6.6`, `result_count=19`, `duration_ms=11701`, 19 resultados com URL + evidência + `dedup_hash`, correlação e relatório gerados.
+- Estado: 209 testes passando (794 assertions) + 1 teste real gated; Pint PASS (214 arquivos).
+
+## Etapa 33 — Integração real do Sherlock
+
+- Verificações prévias (documentadas em `docs/28-sherlock-integracao.md`): licença **MIT**, versão **0.16.2**, Python >= 3.9; instalado na mesma camada Python da imagem junto do Maigret (versões fixadas por `ARG`); binário `/usr/bin/sherlock`.
+- **Sem cópia de lógica**: a camada de execução do Maigret foi extraída para reuso — `ToolWorkspace` (diretório isolado + localização de relatório + limpeza), `ToolVersionDetector` (`--version` por ferramenta) e `ToolOutput::publicWarnings()` (avisos públicos) — e o `MaigretAdapter` foi refatorado para usá-la. O `SherlockAdapter` define apenas argv, validação, leitura do CSV e parser.
+- **Particularidades do Sherlock tratadas**: não há saída JSON (usamos `--csv`); não há "top N" (escopo por lista curada de 19 sites em `SHERLOCK_SITES`); `--local` usa o banco embarcado; a varredura é sequencial e o CSV só sai no fim, então execução interrompida aproveita as linhas `[+]` já impressas, devolvendo resultados parciais com aviso (ou `timeout` se nada foi capturado).
+- **Contrato comum**: `SherlockReportParser` produz `SourceResult` (`social_profile`, `title` = site, `value` = username, `url` = perfil, `confidence` 0.8, evidência `public_profile_url`, metadados site/tool/exists/http_status); linhas `Available` e URLs inválidas são descartadas.
+- **Deduplicação entre fontes**: `ResultDeduplicator::canonicalUrl()` passou a normalizar o host removendo `www.`, de modo que a mesma descoberta encontrada por Maigret (`github.com/x`) e Sherlock (`www.github.com/x`) seja agrupada — a representante guarda `metadata.dedup_sources` com todas as fontes e nenhuma evidência é apagada.
+- Testes: `SherlockReportParserTest`, `SherlockAdapterTest` (argv/escopo/isolamento/timeout parcial/username insegura/troca mock↔real), `CrossSourceDeduplicationTest` (adapters reais com runner determinístico validando `dedup_sources = [maigret, sherlock]`) e `SherlockRealIntegrationTest` (ferramentas reais, gated por `OSINT_E2E=1`); `ResultDeduplicatorTest` ganhou os casos de canonicalização `www.`.
+- Estado: 224 testes passando (860 assertions) + 2 testes reais gated; Pint PASS (224 arquivos).
+
+## Etapa 34 — Integração real do WhatsMyName
+
+- Verificações prévias (documentadas em `docs/29-whatsmyname-integracao.md`): o WhatsMyName é um **dataset** JSON (`wmn-data.json`, 717 sites) sob **CC BY-SA 4.0** (© Micah Hoffman e colaboradores); os checkers embutidos foram removidos em maio/2023 e o repositório mantém apenas o dataset + o schema + um verificador de saúde dos próprios sites. Como não há CLI oficial de busca, o adapter **fixa o dataset por commit** (`ARG WHATSMYNAME_COMMIT`) e executa as verificações conforme o `wmn-data-schema.json`, mantendo o `LICENSE.md` ao lado para atribuição; o build falha se o JSON não interpretar.
+- Novo `App\Sources\Adapters\WhatsMyName\{WhatsMyNameDataset,WhatsMyNameChecker,WhatsMyNameReportParser}` + `WhatsMyNameAdapter`: o dataset é carregado/validado (saída inválida → `unavailable`), os sites são filtrados (nunca `xx NSFW xx`) e limitados, as requisições rodam em lotes concorrentes com timeout por request e orçamento total, e cada descoberta vira `SourceResult` (`uri_pretty` como URL pública, evidência `public_profile_url`, metadados site/category/method/http_status).
+- **Regras do schema aplicadas**: `e_code`/`e_string` (existe) × `m_code`/`m_string` (livre), `post_body` + `headers` (POST, ex. AniList GraphQL), `strip_bad_char` e `uri_pretty`; site sem `{account}` (na URL ou no corpo) é descartado.
+- **Escopo padrão curado**: como a ordem do dataset é alfabética e não há ranking, o padrão passou a ser uma lista curada de 26 sites de alto sinal (`WHATSMYNAME_SITES`, nomes exatos do dataset), com `WHATSMYNAME_MAX_SITES` como teto de segurança — isso também garante sobreposição real com as outras fontes.
+- **Tratamento de falha mapeado**: dataset ausente/inválido → `unavailable`; nenhuma resposta HTTP → `unavailable`; orçamento esgotado sem descobertas → `timeout`; com descobertas → resultados parciais + aviso; username insegura → `invalid_input` sem nenhuma requisição. Versão do dataset (`REVISION`) → `source_runs.tool_version`; licença e contagens → `metrics.adapter`.
+- Testes: `WhatsMyNameReportParserTest`, `WhatsMyNameAdapterTest` (os cinco cenários pedidos + regras do schema, com `Http::preventStrayRequests()`), `WhatsMyNameDeduplicationTest` (adapter real + mock do Maigret → `dedup_sources = [maigret, whatsmyname]` sem perder evidências) e `WhatsMyNameRealIntegrationTest` (dataset e HTTP reais, gated por `OSINT_E2E=1`).
+- Correções de robustez reveladas pelos testes: sites cujo `{account}` está apenas no `post_body` passaram a ser aceitos no carregamento do dataset.
+- **Validação ao vivo** (MySQL + Redis + worker, extensão `python`): run `completed` com maigret 0.6.6 (19), sherlock 0.16.2 (11) e whatsmyname (14, commit `062bcfe…`, licença CC BY-SA 4.0 em `metrics.adapter`); 44 resultados, nenhum sem evidência, 10 grupos deduplicados — `github.com/python`, pinterest, vimeo e telegram com `["maigret","sherlock","whatsmyname"]`, flickr com `["maigret","whatsmyname"]` e twitch/spotify/docker hub com `["sherlock","whatsmyname"]`.
+- Estado: 239 testes passando (917 assertions) + 3 testes reais gated; Pint PASS (232 arquivos).
+
+## Etapa 35 — Integração real do Holehe
+
+- Verificações prévias (documentadas em `docs/30-holehe-integracao.md`): licença **GPL-3.0** (única fonte não-MIT/CC), versão **1.61**, sem pacote de dependências extra; técnica = consulta pública aos fluxos de **registro/login** dos serviços (com recuperação de senha opcional); saída em CSV; **exit code 1 mesmo em sucesso** (o CSV gerado é o sinal confiável).
+- **Salvaguardas inegociáveis**: `--no-password-recovery` fixo no adapter (não configurável), nenhum acesso a conta/credencial/conteúdo privado, colunas `emailrecovery`/`phoneNumber`/`others` jamais lidas ou persistidas, entrada validada e passada como argv separado, execução isolada com timeout e limpeza.
+- **GPL-3.0 registrada**: a ferramenta roda como processo separado (sem linkagem com o código da aplicação), mas redistribuir a imagem exige cumprir as obrigações da GPL — decisão jurídica registrada como pendência. O driver padrão em `config/sources.php` é `mock`; `process` é opt-in explícito no ambiente.
+- **Aviso obrigatório**: uma indicação de cadastro associada a um e-mail não prova que a pessoa controla a conta — `confidence` 0.5 (abaixo do limiar de "encontrado"), `metadata.disclaimer` persistido em `metrics.adapter` e bloco de aviso no relatório sempre que o run tiver o módulo Holehe.
+- Novos `HoleheReportParser` e `HoleheAdapter` (reutilizando `ToolRunner`, `ToolWorkspace`, `ToolVersionDetector` e `ToolOutput`); argv `holehe <email> --no-password-recovery --only-used --no-color --no-clear --csv --timeout N`.
+- Testes: `HoleheReportParserTest` (conversão, domínio inválido e prova de que dados de recuperação nunca entram no domínio), `HoleheAdapterTest` (encontrado com `exit_code=1`, nenhum resultado, relatório ausente, timeout, e-mail inválido sem execução, `-NP` na argv, limpeza, troca mock↔process) e `HoleheRealIntegrationTest` (real, gated, com e-mail de **domínio reservado** RFC 2606).
+- Ajuste de infraestrutura: `ToolVersionDetector::detect()` passou a aceitar o argumento de versão (o Holehe não tem `--version`; a versão vem do `--help`), mantendo `--version` como padrão das demais ferramentas.
+- **Validação ao vivo** (MySQL + Redis + worker, run 22, `python` + `test@example.com`): run `completed` com maigret 0.6.6 (18), whatsmyname (13, commit `062bcfe…`) e **holehe 1.61 (0 serviços, 1931 ms)** — `metrics.adapter.password_recovery = false`, `disclaimer` persistido e aviso renderizado no relatório; nenhum diretório temporário remanescente e fila zerada.
+- Estado: 251 testes passando (975 assertions) + 4 testes reais gated; Pint PASS (237 arquivos).
+
+## Etapa 36 — Normalização e deduplicação reais
+
+- Auditoria do modelo normalizado (achados e correções em `docs/31-normalizacao-deduplicacao.md`): sem versão de chave, `dedup_hash` dependente de etapa posterior, URL canônica parcial, `entity_type` livre e consolidação sem observações.
+- **Chave estável v2**: `sha256(entity_type | plataforma | identificador | URL canônica)` com `dedup_key_version`, `keyParts()` e `explain()` auditáveis. A "fonte" da chave é a **plataforma observada** (github.com…), nunca a ferramenta — incluir a ferramenta impediria a consolidação entre fontes exigida no mesmo prompt.
+- URL canônica: esquema fixo `https` (http/https do mesmo recurso convergem), host sem `www.`, sem barra final/fragmento, parâmetros de rastreamento removidos (`utm_*`, `fbclid`, `ref`, …) e demais parâmetros ordenados (determinístico).
+- `SourceResultNormalizer` passou a gravar a chave e a plataforma na persistência; `NormalizeSourceResultsJob` virou reconciliador (recomputa linhas legadas da chave v1). `SourceResult::toSourceResult()` converte a linha persistida de volta ao contrato do adapter.
+- Consolidação sem apagar evidência: representante com `dedup_sources`, `dedup_group_size` e `dedup_observations` (fonte, URL, data e evidências de cada observação); duplicatas com `duplicate_of`/`duplicate_of_hash`. Deduplicação converge em reexecuções.
+- **Testes cruzados entre adapters**: `CrossAdapterDeduplicationTest` roda Maigret + Sherlock + WhatsMyName + Holehe reais (fixtures + HTTP simulado) — GitHub e Telegram consolidados com 3 fontes observadoras e evidências preservadas; Holehe (e-mail) **nunca** se funde com perfil social, mesmo compartilhando o domínio.
+
+## Etapa 37 — Correlação explicável
+
+- Auditoria da correlação (`docs/32-correlacao-explicavel.md`): sinais sem explicação/limitação, `evidence_ids` com todos os resultados (não os que casaram), score podendo ser lido como probabilidade e faixa de associação para username coincidente.
+- Regra **v2** em `config/correlation.php`: cada sinal é um fator com tipo, peso, `corroborating`, `evaluated`, explicação, limitação e tipos de evidência.
+- Saída persistida em `metadata.correlation`: fatores (com `evidence_ids`, fontes, valores observados), `explanations`, `limitations`, `not_evaluated`, `observed_inputs`, `score_kind = internal_correlation_indicator`, `identity_asserted = false` e `signals` mantido por compatibilidade.
+- **Sem inferência por username**: sem fator corroborante a faixa é "username coincidente — sem corroboração"; as limitações sempre incluem o aviso de indicador interno e o de fonte única.
+- Testes ampliados (`CorrelationServiceTest`): caso **positivo** (username+nome+localização → 70, forte, com explicação/limitação/evidências), **ambíguo** (só username → sem corroboração) e **negativo** (nada casa → 0 + limitação de ausência); duplicatas não somam e a avaliação é determinística.
+
+## Etapa 38 — Relatório baseado em evidências
+
+- Novo `ReportManifestBuilder` + manifesto congelado em `reports.metadata` (`report-manifest-v1`) com `content_hash` sha256: investigação, run (status, motivo, datas, créditos, etapas), identificadores, módulos, fontes (nome, status, versão, resultados, tentativas, duração, mensagens, avisos), resumo, descobertas (consolidadas + observações), correlação, limitações e fontes com falha.
+- Relatório HTML reescrito (`docs/33-relatorio-evidencias.md`): identificadores pesquisados, **fontes consultadas com status/versão/tentativas/duração**, descobertas consolidadas com URL, data/hora de observação, evidências e todas as fontes observadoras, correlação com tabela de fatores (explicação/evidências/limitações), falhas/timeout/não aplicáveis visíveis, avisos e rodapé com o hash do manifesto.
+- Snapshot alinhado ao modelo atual: não se duplica HTML — congela-se o manifesto. Renomear um módulo depois **não** altera um relatório já emitido (teste dedicado).
+- Segurança mantida: conteúdo externo escapado pela Blade e links apenas para URLs `http(s)`.
+
+## Etapa 39 — Créditos, retry e idempotência
+
+- Auditoria (`docs/34-creditos-retry-idempotencia.md`): a reserva única do total fazia o usuário pagar por módulos que falharam em runs parciais.
+- **Cobrança por módulo**: `credit_reservations.source` (nova migration) + `InvestigationOrchestrator::reserveCredits()`, com chave idempotente `run-{id}-source-{slug}-reserve`. No encerramento, módulo `completed` é consumido e `failed`/`timeout`/`skipped` é estornado; reservas legadas (uma por run) mantêm o comportamento anterior. `credits_consumed` passou a somar apenas o efetivamente cobrado.
+- **Reexecução controlada**: `InvestigationService::rerun()` + policy `rerun` + rota `POST /investigations/{id}/runs` (`throttle`) + botão na UI (com link para o relatório de cada run). Cria novo run com custo independente, recusa enquanto houver execução em andamento e exige saldo; o run anterior permanece intacto.
+- **Testes** (`CreditRetryIdempotencyTest`, 9 cenários): run parcial cobra só o módulo concluído; run falho estorna tudo; retry do job de abertura não duplica reserva; reentrega da fonte reconverge resultados e cobra uma vez; reserva vencida é compensada; reexecução cria run independente; recusa durante run em andamento; exige saldo; rota autorizada (403 para terceiros). Invariante verificada em todos: `saldo == soma(ledger)`.
+- **Validação ao vivo** (MySQL + Redis + worker): run 23 com as 4 fontes reais — maigret 18, sherlock 10, whatsmyname 13, holehe 0; 41 resultados, todos com chave v2; 28 descobertas (9 consolidadas: github/medium/pinterest/telegram/flickr/vimeo/tiktok/spotify/docker com 2–3 fontes cada); correlação v2 (40, "username coincidente — sem corroboração"); manifesto `report-manifest-v1` (`ba8fa4cdf656`); saldo 467 == ledger. Reexecução ao vivo gerou o run 24 (`run_number` 2) com 3 módulos e 6 créditos, mantendo os runs anteriores intactos e o saldo 461 == ledger.
+- Estado: 278 testes passando (1154 assertions) + 4 testes reais gated; Pint PASS (241 arquivos).
+
+## Decisões do cliente (ajuste pós-etapa 39)
+
+1. **Cobrança pela consulta, não pelo resultado** — a regra de liquidação passou de "consome só o módulo concluído" para **"consome toda consulta executada"**: o módulo é cobrado mesmo sem nenhum resultado (`attempts > 0`), inclusive quando a consulta falhou ou estourou o tempo limite; só é **estornado** o que nunca foi consultado (módulo não aplicável, job perdido, worker interrompido). Módulos não aplicáveis continuam sem gerar reserva. `ReleaseReservedCreditsJob::isChargeable()` + `docs/34` + README atualizados; testes renomeados/ampliados (12 cenários, incluindo "módulo sem resultado é cobrado", "módulo não aplicável não gera reserva" e "reserva sem execução é estornada").
+2. **Holehe como as demais fontes** — driver padrão passou de `mock` para **`process`** (`config/sources.php`), alinhado a Maigret/Sherlock/WhatsMyName (a suíte de testes segue em `mock` via `phpunit.xml`). Decisão de licença registrada em `docs/30-holehe-integracao.md`, no docblock do adapter, no `.env.example` e no README: a ferramenta roda como **processo separado** e o serviço é acessado pela rede, sem distribuição do binário — a GPL-3.0 não impõe copyleft ao código da plataforma; as obrigações passariam a valer apenas se a imagem com o binário fosse distribuída a terceiros. As salvaguardas técnicas permanecem: `--no-password-recovery` fixo, nenhum dado de recuperação lido/persistido e o aviso de que a indicação de cadastro não prova controle da conta.
+
+
+
+## Etapa 41 — Investigação avulsa (sem cadastro)
+
+> Executada antes da etapa 40 (auditoria E2E com as ferramentas reais), que
+> permanece pendente; por isso a documentação desta etapa é o `docs/35`.
+
+- **Decisão do cliente (billing da avulsa)**: consulta avulsa é **pagamento fixo
+  por consulta fixa, sem consumo de crédito** — "pagou, usou, acabou". Nenhuma
+  alteração em `credit_reservations`, `credit_transactions` ou carteiras; a
+  evidência financeira é `payments` (+ `payment_events`) com o preço congelado em
+  `investigations.guest_price_cents`.
+- **Preço configurável sem deploy**: `credit_packages.kind` (`credits` |
+  `guest_investigation`) reusando o CRUD `/admin/packages`; a linha da avulsa é
+  única, criada pelo seeder (R$ 29,90 por padrão), editável e não removível; o
+  segmento "Pacotes de créditos" continua restrito a créditos.
+- **Banco (4 migrations)**: `credit_packages.kind`; `investigations` com `user_id`
+  nullable + `origin` + `access_token_hash` (único) + `access_token_created_at` +
+  `access_token_expires_at` + `guest_price_cents` + índice `(origin,status)`;
+  `payments` com `user_id` nullable + `guest_investigation_id` (único, FK);
+  `reports.user_id` nullable. Nenhum estado novo: `draft` → `queued` → `running` →
+  `completed`/`partial`/`failed`, com `expired` para rascunho não pago.
+- **Sem execução antes do pagamento**: o run nasce `pending` e **não é despachado**;
+  `GuestInvestigationService::release()` (chamado pelo `PaymentService` na
+  confirmação do pagamento) libera e despacha; o `StartInvestigationRunJob`
+  revalida o pagamento (`unpaid_guest_investigation`) e não reserva créditos
+  (`funding = guest_prepaid`); o `ReleaseReservedCreditsJob` faz curto-circuito na
+  avulsa. A regra das contas (pós-39) permanece intacta.
+- **Token como única credencial**: 256 bits (`random_bytes(32)`), persistido só
+  como SHA-256; rotas `/investigacao/acesso/{token}` (+ `/status`, `/relatorio`,
+  `/pix/confirmar` apenas com provider fake), CSRF ativo, `no-store`/`noindex`
+  (`GuestAccessHeaders`), rate limit `guest-create`/`guest-access`; rotas
+  autenticadas respondem 404 para avulsa (não-admin) e a policy nega `view`/`rerun`.
+- **Expiração**: `guest:expire-unpaid` a cada 5 minutos (`config/guest.php`,
+  padrão 1440 min) marca rascunho + pedido como `expired` (evento idempotente) sem
+  executar; pagamento tardio (webhook) ainda executa o que foi pago.
+- **UI pública**: `layouts/public.blade.php` (`<x-public-layout>`), formulário
+  `/investigacao` e página de acompanhamento com polling, reusando o mesmo
+  relatório/manifesto (`reports/show.blade.php` com layout dinâmico + `backUrl`).
+- **Admin**: preço da avulsa em `/admin/packages`; `/admin/investigations` com
+  filtro Todas/Contas/Avulsas, origem, preço e pagamento (`Sem conta`);
+  `/admin/payments` com tipo Créditos x Avulsa e vínculo; token/hash nunca exibidos.
+- **Testes**: `GuestInvestigationTest` (8), `GuestPaymentTest` (5) e
+  `GuestSecurityTest` (7) — criação sem conta, nada executa sem pagamento, liberação
+  e relatório pelo token, idempotência de pagamento/liberação, expiração, pagamento
+  tardio, isolamento entre tokens, rate limit, cabeçalhos e painel; carteira/ledger
+  de contas intactos. `DemoDataSeederTest` e `ReferenceDataSeederTest` ajustados
+  (3 pacotes de crédito + 1 preço avulso).
+- **Validação**: `php artisan test` — 301 passando, 4 ignorados (reais gated), 1310
+  assertions; `./vendor/bin/pint --test` — PASS (255 arquivos); 56 rotas.

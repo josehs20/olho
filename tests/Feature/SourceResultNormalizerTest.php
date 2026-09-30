@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Services\ResultDeduplicator;
 use App\Services\SourceResultNormalizer;
 use App\Sources\InvestigationContext;
 use App\Sources\InvestigationInput;
@@ -39,8 +40,39 @@ class SourceResultNormalizerTest extends TestCase
         $this->assertSame('https://github.com/joao', $attributes['url']);
         $this->assertSame('GitHub — joao', $attributes['title']);
         $this->assertSame(0.9, $attributes['confidence']);
-        $this->assertSame(['site' => 'github.com'], $attributes['metadata']);
+        $this->assertSame('github.com', $attributes['metadata']['site']);
+        $this->assertSame('github.com', $attributes['metadata']['platform']);
+        $this->assertSame(ResultDeduplicator::KEY_VERSION, $attributes['metadata']['dedup_key_version']);
         $this->assertNotNull($attributes['observed_at']);
+
+        // A chave estável é gravada junto do resultado (prompt 36).
+        $this->assertSame(64, strlen((string) $attributes['dedup_hash']));
+        $this->assertSame(
+            $attributes['dedup_hash'],
+            app(ResultDeduplicator::class)->dedupHash($result),
+        );
+    }
+
+    public function test_canonicalizes_entity_type_aliases(): void
+    {
+        $normalizer = $this->normalizer;
+
+        $aliases = [
+            'profile' => 'social_profile',
+            'account' => 'social_profile',
+            'mail' => 'email_account',
+            'website' => 'web_page',
+            'person' => 'person_name',
+            'unknown' => 'unknown',
+            '' => 'unknown',
+            'custom_type' => 'custom_type',
+        ];
+
+        foreach ($aliases as $input => $expected) {
+            $attributes = $normalizer->attributes(new SourceResult(source: 's', entityType: $input, value: 'v'));
+
+            $this->assertSame($expected, $attributes['entity_type'], "alias: {$input}");
+        }
     }
 
     public function test_strips_html_from_text_fields(): void
@@ -115,11 +147,11 @@ class SourceResultNormalizerTest extends TestCase
         ];
 
         foreach ($inputs as $key => $input) {
-            $results = $registry->get($key)->execute(new InvestigationContext($input));
+            $findings = $registry->get($key)->execute(new InvestigationContext($input))->findings;
 
-            $this->assertNotEmpty($results, "{$key} deveria retornar resultados");
+            $this->assertNotEmpty($findings, "{$key} deveria retornar resultados");
 
-            foreach ($results as $result) {
+            foreach ($findings as $result) {
                 $attributes = $normalizer->attributes($result);
 
                 $this->assertNotEmpty($attributes['value']);

@@ -1,0 +1,6 @@
+username,name,url_main,url_user,exists,http_status,response_time_s
+python,GitHub,https://www.github.com/,https://www.github.com/python,Claimed,200,0.2727282250125427
+python,Telegram,https://t.me/,https://t.me/python,Claimed,200,0.8729997269983869
+python,Pinterest,https://www.pinterest.com/,https://www.pinterest.com/python/,Claimed,200,0.5191811200056691
+python,TikTok,https://www.tiktok.com,https://www.tiktok.com/@python,Claimed,200,0.7342726429924369
+python,YouTube,https://www.youtube.com/,https://www.youtube.com/@python,Available,404,0.412

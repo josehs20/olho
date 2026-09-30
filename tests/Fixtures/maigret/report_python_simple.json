@@ -1,0 +1,50 @@
+{
+    "GitHub": {
+        "site": {
+            "tags": ["business", "coding", "networking"],
+            "alexaRank": 10,
+            "urlMain": "https://www.github.com/",
+            "url": "https://github.com/{username}"
+        },
+        "username": "python",
+        "parsing_enabled": false,
+        "url_main": "https://www.github.com/",
+        "url_user": "https://github.com/python",
+        "url_probe": "https://api.github.com/users/python",
+        "status": {
+            "username": "python",
+            "site_name": "GitHub",
+            "url": "https://github.com/python",
+            "status": "Claimed",
+            "ids": {},
+            "tags": ["business", "coding", "networking"]
+        },
+        "http_status": 200,
+        "rank": 10
+    },
+    "Telegram": {
+        "site": {
+            "tags": ["messaging"],
+            "alexaRank": 1234,
+            "urlMain": "https://t.me",
+            "url": "https://t.me/{username}"
+        },
+        "username": "python",
+        "parsing_enabled": false,
+        "url_user": "https://t.me/python",
+        "status": {
+            "username": "python",
+            "site_name": "Telegram",
+            "url": "https://t.me/python",
+            "status": "Claimed",
+            "tags": ["messaging"]
+        },
+        "http_status": 200,
+        "rank": 1234
+    },
+    "SemUrl": {
+        "username": "python",
+        "url_user": "not-a-url",
+        "status": {"status": "Claimed"}
+    }
+}

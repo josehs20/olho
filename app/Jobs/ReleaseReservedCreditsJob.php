@@ -2,11 +2,21 @@
 
 namespace App\Jobs;
 
+use App\Models\CreditReservation;
 use App\Models\InvestigationRun;
 use App\Services\CreditLedgerService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
+/**
+ * Encerra a cobrança do run (prompt 39).
+ *
+ * Regra: o usuário paga **pela consulta executada**, não pelo resultado. Cada
+ * reserva criada na abertura do run é consumida (módulo efetivamente consultado,
+ * com ou sem resultado) ou estornada (módulo nunca consultado). Toda operação é
+ * idempotente por reserva (`run-consume-{id}` / `run-release-{id}`) e protegida
+ * pela etapa `credits_released_at` do pipeline.
+ */
 class ReleaseReservedCreditsJob implements ShouldQueue
 {
     use Queueable;
@@ -27,16 +37,21 @@ class ReleaseReservedCreditsJob implements ShouldQueue
             return;
         }
 
+        $run->loadMissing(['sourceRuns', 'investigation']);
+
+        // Investigação avulsa (prompt 41): preço fixo pago, sem créditos — não há
+        // reserva a consumir ou estornar. A etapa fica registrada para manter o
+        // pipeline observável. A regra das contas (pós-39) permanece intacta.
+        if ($run->investigation?->isGuest()) {
+            $run->markPipelineStage('credits_released_at');
+
+            return;
+        }
+
         $reservations = $run->creditReservations()->where('status', 'pending')->get();
 
         foreach ($reservations as $reservation) {
-            $completed = in_array(
-                $run->status,
-                [InvestigationRun::STATUS_COMPLETED, InvestigationRun::STATUS_PARTIAL],
-                true,
-            );
-
-            if ($completed) {
+            if ($this->isChargeable($run, $reservation)) {
                 $credits->consume($reservation, 'run-consume-'.$reservation->id);
                 $run->credits_consumed += $reservation->amount;
             } else {
@@ -46,5 +61,26 @@ class ReleaseReservedCreditsJob implements ShouldQueue
 
         $run->save();
         $run->markPipelineStage('credits_released_at');
+    }
+
+    /**
+     * Cobrança: paga-se pela **consulta executada**, não pelo resultado.
+     *
+     * Um módulo efetivamente consultado é cobrado mesmo sem resultado — e também
+     * quando a consulta falhou ou estourou o tempo limite (a consulta aconteceu).
+     * Só é estornado o que **nunca foi consultado**: módulo não aplicável
+     * (`skipped`), reserva sem execução (`pending`/`running`, incluindo worker
+     * interrompido) ou módulo que não chegou a ser criado no run.
+     */
+    private function isChargeable(InvestigationRun $run, CreditReservation $reservation): bool
+    {
+        // Reserva legada (uma por run, sem módulo): mantém o comportamento anterior.
+        if ($reservation->source === null) {
+            return in_array($run->status, [InvestigationRun::STATUS_COMPLETED, InvestigationRun::STATUS_PARTIAL], true);
+        }
+
+        $sourceRun = $run->sourceRuns->firstWhere('source', $reservation->source);
+
+        return $sourceRun !== null && (int) $sourceRun->attempts > 0;
     }
 }

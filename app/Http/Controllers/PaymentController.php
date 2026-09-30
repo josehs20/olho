@@ -16,10 +16,14 @@ class PaymentController extends Controller
 
     /**
      * Lista os pacotes de créditos disponíveis.
+     *
+     * O preço fixo da investigação avulsa (`kind = guest_investigation`) não é
+     * vendido aqui: ele é oferecido na jornada pública sem cadastro.
      */
     public function index(): View
     {
         $packages = CreditPackage::query()
+            ->where('kind', CreditPackage::KIND_CREDITS)
             ->where('active', true)
             ->orderBy('display_order')
             ->get();
@@ -32,6 +36,8 @@ class PaymentController extends Controller
      */
     public function store(Request $request, CreditPackage $package): RedirectResponse
     {
+        abort_if($package->isGuestKind(), 404);
+
         $payment = $this->payments->checkout($request->user(), $package);
 
         return redirect()->route('payments.show', $payment);
@@ -42,7 +48,7 @@ class PaymentController extends Controller
      */
     public function show(Request $request, Payment $payment): View
     {
-        $this->ensureOwnership($request->user(), $payment);
+        $this->ensureAccountOwnership($request->user(), $payment);
 
         return view('payments.show', [
             'payment' => $payment,
@@ -55,7 +61,7 @@ class PaymentController extends Controller
      */
     public function simulate(Request $request, Payment $payment): RedirectResponse
     {
-        $this->ensureOwnership($request->user(), $payment);
+        $this->ensureAccountOwnership($request->user(), $payment);
 
         $this->payments->simulatePayment($payment);
 
@@ -76,8 +82,15 @@ class PaymentController extends Controller
         return response()->json(['status' => 'ok']);
     }
 
-    private function ensureOwnership(User $user, Payment $payment): void
+    /**
+     * Pedido avulso não pertence a conta alguma: só o token de acesso o alcança
+     * (Guest\PaymentController). Rota autenticada responde 404 para não revelar
+     * a existência do pedido.
+     */
+    private function ensureAccountOwnership(User $user, Payment $payment): void
     {
+        abort_if($payment->isGuest(), 404);
+
         abort_if($payment->user_id !== $user->id, 403);
     }
 }

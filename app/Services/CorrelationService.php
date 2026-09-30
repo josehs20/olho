@@ -8,6 +8,20 @@ use App\Sources\InvestigationInput;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
+/**
+ * Correlação explicável (prompt 37).
+ *
+ * Regras (determinísticas e documentadas em
+ * `docs/32-correlacao-explicavel.md`):
+ *
+ *  - usa **somente** os dados observados e persistidos neste run;
+ *  - cada associação guarda fatores, evidências usadas, pontuação interna,
+ *    explicação e limitações;
+ *  - o valor é um **indicador interno** de correlação, jamais probabilidade de
+ *    identidade (`score_kind` + limitações fixas);
+ *  - username coincidente **não** infere identidade: só fatores corroborantes
+ *    (nome, e-mail, localização) habilitam as faixas exibidas ao usuário.
+ */
 class CorrelationService
 {
     public function persist(InvestigationRun $run): array
@@ -24,116 +38,223 @@ class CorrelationService
 
     /**
      * Calcula a correlação de forma determinística e explicável.
+     *
+     * @return array<string, mixed>
      */
     public function correlate(InvestigationRun $run): array
     {
         $input = InvestigationInput::fromArray($run->input_snapshot ?? []);
         $results = $this->eligibleResults($run);
 
-        $signals = $this->evaluateSignals($input, $results);
+        $factors = $this->evaluateFactors($input, $results);
+        $score = min(100, array_sum(array_column($factors, 'weight')));
 
-        $score = min(100, array_sum(array_column($signals, 'weight')));
+        $corroborating = collect($factors)->where('corroborating', true)->count();
+        $sources = collect($factors)->pluck('sources')->flatten()->filter()->unique()->values()->all();
 
         return [
             'score' => $score,
+            'score_max' => 100,
+            'score_kind' => config('correlation.score_kind'),
             'rule_version' => config('correlation.rule_version'),
-            'signals' => array_values($signals),
-            'evidence_ids' => $results->pluck('id')->values()->all(),
-            'label' => $this->label($score),
+            'label' => $this->label($score, $corroborating),
+            'identity_asserted' => false,
+            'factors' => $factors,
+            // Compatibilidade com consumidores anteriores (nome + peso).
+            'signals' => array_map(
+                static fn (array $factor): array => ['name' => $factor['signal'], 'weight' => $factor['weight']],
+                $factors,
+            ),
+            'evidence_ids' => collect($factors)->pluck('evidence_ids')->flatten()->unique()->values()->all(),
+            'evidence_count' => collect($factors)->pluck('evidence_ids')->flatten()->unique()->count(),
+            'sources_observed' => $sources,
+            'explanations' => collect($factors)->pluck('explanation')->values()->all(),
+            'limitations' => $this->limitations($factors, $sources),
+            'not_evaluated' => $this->notEvaluated(),
+            'observed_inputs' => $this->observedInputs($input),
+            'observed_results' => $results->count(),
+            'evaluated_at' => now()->toISOString(),
         ];
     }
 
     /**
-     * Resultados não duplicados (sinais de correspondência reais).
+     * Resultados não duplicados (sinais de correspondência reais). A descoberta
+     * consolidada representa o grupo; duplicatas não somam pontos.
      */
     private function eligibleResults(InvestigationRun $run): Collection
     {
         return SourceResult::query()
             ->whereHas('sourceRun', fn ($q) => $q->where('investigation_run_id', $run->id))
+            ->with('sourceRun.sourceDefinition')
             ->get()
-            ->filter(fn (SourceResult $r) => empty($r->metadata['duplicate_of']))
+            ->filter(fn (SourceResult $result) => empty($result->metadata['duplicate_of']))
             ->values();
     }
 
     /**
-     * Sinais que efetivamente casaram.
+     * Constrói os fatores que efetivamente casaram, com evidência e explicação.
+     *
+     * @return array<int, array<string, mixed>>
      */
-    private function evaluateSignals(InvestigationInput $input, Collection $results): array
+    private function evaluateFactors(InvestigationInput $input, Collection $results): array
     {
-        $signals = [];
+        $factors = [];
 
-        foreach (config('correlation.weights') as $name => $weight) {
-            if ($this->signalMatches($name, $input, $results)) {
-                $signals[$name] = ['name' => $name, 'weight' => $weight];
+        foreach (config('correlation.signals') as $signal => $definition) {
+            if (($definition['evaluated'] ?? true) === false) {
+                continue;
             }
+
+            $matched = $this->matches($signal, $input, $results);
+
+            if ($matched->isEmpty()) {
+                continue;
+            }
+
+            $factors[] = [
+                'type' => $definition['type'],
+                'signal' => $signal,
+                'weight' => (int) $definition['weight'],
+                'corroborating' => (bool) ($definition['corroborating'] ?? true),
+                'explanation' => $definition['explanation'],
+                'limitation' => $definition['limitation'],
+                'evidence_ids' => $matched->pluck('id')->values()->all(),
+                'evidence_types' => $this->evidenceTypes($definition, $matched),
+                'sources' => $this->sources($matched),
+                'observed_values' => $matched->pluck('value')->unique()->values()->all(),
+            ];
         }
 
-        return $signals;
+        return $factors;
     }
 
-    private function signalMatches(string $name, InvestigationInput $input, Collection $results): bool
+    /**
+     * @param  array<string, mixed>  $definition
+     * @param  Collection<int, SourceResult>  $matched
+     * @return array<int, string>
+     */
+    private function evidenceTypes(array $definition, Collection $matched): array
     {
-        return match ($name) {
-            'username_exact_match' => $this->hasValue($input->username, $results),
-            'email_exact_match' => $this->hasValue($input->email, $results),
-            'name_compatible' => $this->nameMatches($input->name, $results),
-            'location_compatible' => $this->locationMatches($input, $results),
-            'bio_similar', 'image_reference_compatible' => false,
-            default => false,
+        $declared = $definition['evidence_types'] ?? [];
+
+        $observed = $matched
+            ->flatMap(fn (SourceResult $result) => collect($result->raw_payload['evidence'] ?? [])->pluck('type'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return $observed === [] ? $declared : $observed;
+    }
+
+    /**
+     * @param  Collection<int, SourceResult>  $matched
+     * @return array<int, string>
+     */
+    private function sources(Collection $matched): array
+    {
+        return $matched
+            ->map(fn (SourceResult $result) => $result->sourceRun?->sourceDefinition?->slug ?? $result->sourceRun?->source)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  Collection<int, SourceResult>  $results
+     * @return Collection<int, SourceResult>
+     */
+    private function matches(string $signal, InvestigationInput $input, Collection $results): Collection
+    {
+        return match ($signal) {
+            'username_exact_match' => $this->byValue($input->username, $results),
+            'email_exact_match' => $this->byValue($input->email, $results),
+            'name_compatible' => $this->byName($input->name, $results),
+            'location_compatible' => $this->byLocation($input, $results),
+            default => collect(),
         };
     }
 
-    private function hasValue(?string $value, Collection $results): bool
+    /**
+     * @param  Collection<int, SourceResult>  $results
+     * @return Collection<int, SourceResult>
+     */
+    private function byValue(?string $value, Collection $results): Collection
     {
         if ($value === null || trim($value) === '') {
-            return false;
+            return collect();
         }
 
         $normalized = $this->normalize($value);
 
-        return $results->contains(fn (SourceResult $r) => $this->normalize($r->value) === $normalized);
+        return $results
+            ->filter(fn (SourceResult $result) => $this->normalize((string) $result->value) === $normalized)
+            ->values();
     }
 
-    private function nameMatches(?string $name, Collection $results): bool
+    /**
+     * @param  Collection<int, SourceResult>  $results
+     * @return Collection<int, SourceResult>
+     */
+    private function byName(?string $name, Collection $results): Collection
     {
         if ($name === null || trim($name) === '') {
-            return false;
+            return collect();
         }
 
         $normalized = $this->normalize($name);
 
-        return $results->contains(function (SourceResult $r) use ($normalized) {
-            if ($this->normalize($r->value) === $normalized) {
+        return $results->filter(function (SourceResult $result) use ($normalized) {
+            if ($this->normalize((string) $result->value) === $normalized) {
                 return true;
             }
 
-            return $r->title !== null && str_contains($this->normalize($r->title), $normalized);
-        });
+            $haystack = $this->normalize(trim(($result->title ?? '').' '.($result->description ?? '')));
+
+            return $haystack !== '' && str_contains($haystack, $normalized);
+        })->values();
     }
 
-    private function locationMatches(InvestigationInput $input, Collection $results): bool
+    /**
+     * @param  Collection<int, SourceResult>  $results
+     * @return Collection<int, SourceResult>
+     */
+    private function byLocation(InvestigationInput $input, Collection $results): Collection
     {
-        if ($input->city === null && $input->state === null) {
-            return false;
-        }
-
         $city = $input->city !== null ? $this->normalize($input->city) : null;
         $state = $input->state !== null ? $this->normalize($input->state) : null;
 
-        return $results->contains(function (SourceResult $r) use ($city, $state) {
-            $location = $this->normalize((string) ($r->metadata['location'] ?? ''));
+        if (($city === null || $city === '') && ($state === null || $state === '')) {
+            return collect();
+        }
+
+        return $results->filter(function (SourceResult $result) use ($city, $state) {
+            $location = $this->normalize((string) ($result->metadata['location'] ?? ''));
 
             if ($location === '') {
                 return false;
             }
 
-            return ($city !== null && str_contains($location, $city))
-                || ($state !== null && str_contains($location, $state));
-        });
+            return ($city !== null && $city !== '' && str_contains($location, $city))
+                || ($state !== null && $state !== '' && str_contains($location, $state));
+        })->values();
     }
 
-    private function label(int $score): string
+    /**
+     * Faixa de exibição. Sem fator corroborante nenhuma faixa de associação é
+     * exibida — username coincidente não indica identidade.
+     */
+    private function label(int $score, int $corroborating): string
     {
+        if ($score === 0) {
+            return 'sem correspondência observada';
+        }
+
+        if ($corroborating === 0) {
+            return 'username coincidente — sem corroboração';
+        }
+
         if ($score >= (int) config('correlation.strong_threshold')) {
             return 'correspondência forte por sinais públicos';
         }
@@ -143,6 +264,59 @@ class CorrelationService
         }
 
         return 'baixa correspondência';
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $factors
+     * @param  array<int, string>  $sources
+     * @return array<int, string>
+     */
+    private function limitations(array $factors, array $sources): array
+    {
+        $limitations = config('correlation.global_limitations');
+
+        foreach ($factors as $factor) {
+            if (isset($factor['limitation']) && ! in_array($factor['limitation'], $limitations, true)) {
+                $limitations[] = $factor['limitation'];
+            }
+        }
+
+        if (count($sources) === 1) {
+            $limitations[] = 'Todos os sinais vieram de uma única fonte ('.$sources[0].'); não houve corroboração entre fontes independentes.';
+        }
+
+        if ($factors === []) {
+            $limitations[] = 'Nenhum fator de correlação casou com os dados observados; ausência de correspondência não prova inexistência.';
+        }
+
+        return $limitations;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function notEvaluated(): array
+    {
+        return collect(config('correlation.signals'))
+            ->filter(fn (array $definition) => ($definition['evaluated'] ?? true) === false)
+            ->map(fn (array $definition) => $definition['type'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    private function observedInputs(InvestigationInput $input): array
+    {
+        return [
+            'name' => $input->name,
+            'username' => $input->username,
+            'email' => $input->email,
+            'phone' => $input->phone,
+            'city' => $input->city,
+            'state' => $input->state,
+        ];
     }
 
     private function normalize(string $value): string

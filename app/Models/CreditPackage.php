@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,6 +10,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class CreditPackage extends Model
 {
     use HasFactory;
+
+    /** Pacote de créditos (fluxo autenticado). */
+    public const KIND_CREDITS = 'credits';
+
+    /**
+     * Preço fixo da investigação avulsa (prompt 41).
+     *
+     * Não concede créditos: o visitante paga um valor fixo por uma execução
+     * ("pagou, usou, acabou").
+     */
+    public const KIND_GUEST_INVESTIGATION = 'guest_investigation';
 
     protected $guarded = [];
 
@@ -26,5 +38,28 @@ class CreditPackage extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function isGuestKind(): bool
+    {
+        return $this->kind === self::KIND_GUEST_INVESTIGATION;
+    }
+
+    /**
+     * @param  Builder<CreditPackage>  $query
+     * @return Builder<CreditPackage>
+     */
+    public function scopeOfKind(Builder $query, string $kind): Builder
+    {
+        return $query->where('kind', $kind);
+    }
+
+    /**
+     * @param  Builder<CreditPackage>  $query
+     * @return Builder<CreditPackage>
+     */
+    public function scopeGuestKind(Builder $query): Builder
+    {
+        return $query->where('kind', self::KIND_GUEST_INVESTIGATION);
     }
 }

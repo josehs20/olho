@@ -161,3 +161,17 @@ Criar índices para:
 - usar casts JSON adequados;
 - valores monetários em centavos inteiros;
 - UTC no armazenamento.
+
+
+## Investigação avulsa (prompt 41)
+
+- `credit_packages.kind` (`credits` | `guest_investigation`) — o preço da avulsa é
+  uma linha única, sem créditos.
+- `investigations`: `user_id` nullable, `origin`, `access_token_hash` (char(64),
+  único), `access_token_created_at`, `access_token_expires_at`,
+  `guest_price_cents`, índice `(origin, status)`.
+- `payments`: `user_id` nullable e `guest_investigation_id` (único, FK
+  `investigations` com cascade) — um pedido por avulsa.
+- `reports.user_id` nullable (relatório de run avulso não tem dono).
+- Nenhuma tabela de créditos foi alterada: a avulsa não movimenta ledger nem
+  carteiras.

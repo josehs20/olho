@@ -51,3 +51,20 @@ MVP funcional de ponta a ponta: cadastro/login, créditos (ledger imutável), PI
 - Adicionar job de purga por retenção (`RetentionPurgeJob` + schedule).
 - Personalizar landing page.
 - (Fase 2) integrar fontes reais seguindo licença/termos (Maigret, Sherlock, WhatsMyName, Holehe).
+
+
+## Atualização — etapa 41 (investigação avulsa sem cadastro)
+
+- **Testes**: 301 passando + 4 ignorados (integrações reais gated) · 1310 assertions
+- **Pint**: PASS (255 arquivos)
+- **Rotas**: 56 (6 novas: jornada avulsa, token, status, relatório, confirmação PIX)
+- **Migrations**: +4 (`credit_packages.kind`, acesso avulso em `investigations`,
+  `payments.guest_investigation_id`, `reports.user_id` nullable)
+- **Escopo entregue**: consulta avulsa com preço fixo configurável pelo admin,
+  pagamento PIX reusando a abstração existente, execução apenas após pagamento,
+  acompanhamento e relatório por token de alta entropia, expiração de rascunho não
+  pago, painel administrativo com origem/preço/pagamento e isolamento total do
+  histórico de contas. Créditos, ledger e a regra de cobrança das contas não foram
+  alterados (a avulsa não consome créditos).
+- **Pendente**: etapa 40 (auditoria E2E com Maigret/Sherlock/WhatsMyName/Holehe
+  reais, doc de integração e tag `etapa-40-e2e-real`).

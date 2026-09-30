@@ -18,7 +18,32 @@ class InvestigationFactory extends Factory
         return [
             'user_id' => User::factory(),
             'title' => fake()->words(3, true),
-            'status' => 'draft',
+            'status' => Investigation::STATUS_DRAFT,
         ];
+    }
+
+    public function queued(): static
+    {
+        return $this->state(fn () => ['status' => Investigation::STATUS_QUEUED]);
+    }
+
+    public function running(): static
+    {
+        return $this->state(fn () => ['status' => Investigation::STATUS_RUNNING]);
+    }
+
+    public function completed(): static
+    {
+        return $this->state(fn () => ['status' => Investigation::STATUS_COMPLETED]);
+    }
+
+    public function partial(): static
+    {
+        return $this->state(fn () => ['status' => Investigation::STATUS_PARTIAL]);
+    }
+
+    public function failed(): static
+    {
+        return $this->state(fn () => ['status' => Investigation::STATUS_FAILED]);
     }
 }

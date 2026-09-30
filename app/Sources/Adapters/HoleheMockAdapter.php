@@ -7,6 +7,7 @@ use App\Sources\Exceptions\SourceUnavailableException;
 use App\Sources\InvestigationContext;
 use App\Sources\InvestigationInput;
 use App\Sources\InvestigationSource;
+use App\Sources\SourceOutcome;
 use App\Sources\SourceResult;
 
 /**
@@ -41,16 +42,16 @@ final class HoleheMockAdapter implements InvestigationSource
         return $input->email !== null;
     }
 
-    public function execute(InvestigationContext $context): array
+    public function execute(InvestigationContext $context): SourceOutcome
     {
         $email = $context->input->email;
 
-        return match ($email) {
+        return SourceOutcome::of(match ($email) {
             'not_found' => [],
             'timeout' => throw new SourceTimeoutException('holehe timeout'),
             'error' => throw new SourceUnavailableException('holehe unavailable'),
             default => $this->fixtures($email),
-        };
+        });
     }
 
     public function normalize(array $raw): SourceResult

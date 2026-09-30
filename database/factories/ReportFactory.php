@@ -22,4 +22,12 @@ class ReportFactory extends Factory
             'status' => 'pending',
         ];
     }
+
+    public function completed(): static
+    {
+        return $this->state(fn () => [
+            'status' => 'completed',
+            'generated_at' => now(),
+        ]);
+    }
 }

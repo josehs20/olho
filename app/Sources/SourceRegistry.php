@@ -2,6 +2,8 @@
 
 namespace App\Sources;
 
+use App\Sources\Exceptions\SourceNotRegisteredException;
+
 final class SourceRegistry
 {
     /** @var array<string, InvestigationSource> */
@@ -19,9 +21,12 @@ final class SourceRegistry
         $this->sources[$source->key()] = $source;
     }
 
+    /**
+     * @throws SourceNotRegisteredException quando não há adapter para o slug
+     */
     public function get(string $key): InvestigationSource
     {
-        return $this->sources[$key] ?? throw new \InvalidArgumentException("Source '{$key}' não registrada.");
+        return $this->sources[$key] ?? throw SourceNotRegisteredException::forSlug($key);
     }
 
     public function has(string $key): bool

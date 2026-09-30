@@ -11,7 +11,7 @@ class PaymentController extends Controller
     public function index(): View
     {
         return view('admin.payments.index', [
-            'payments' => Payment::query()->with('user', 'creditPackage')->latest()->paginate(20),
+            'payments' => Payment::query()->with('user', 'creditPackage', 'guestInvestigation')->latest()->paginate(20),
         ]);
     }
 }

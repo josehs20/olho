@@ -27,20 +27,21 @@ class WhatsMyNameMockAdapterTest extends TestCase
 
     public function test_returns_multiple_items_for_deduplication(): void
     {
-        $results = (new WhatsMyNameMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'joao')));
+        $findings = (new WhatsMyNameMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'joao')))->findings;
 
-        $this->assertGreaterThan(2, count($results));
-        $this->assertSame('social_profile', $results[0]->entityType);
-        $this->assertSame('joao', $results[0]->value);
-        $this->assertSame('whatsmyname', $results[0]->source);
-        $this->assertSame('github.com', $results[0]->metadata['site']);
+        $this->assertGreaterThan(2, count($findings));
+        $this->assertSame('social_profile', $findings[0]->entityType);
+        $this->assertSame('joao', $findings[0]->value);
+        $this->assertSame('whatsmyname', $findings[0]->source);
+        $this->assertSame('github.com', $findings[0]->metadata['site']);
     }
 
     public function test_not_found_scenario_returns_empty(): void
     {
-        $results = (new WhatsMyNameMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'not_found')));
+        $outcome = (new WhatsMyNameMockAdapter)->execute(new InvestigationContext(new InvestigationInput(username: 'not_found')));
 
-        $this->assertSame([], $results);
+        $this->assertTrue($outcome->isEmpty());
+        $this->assertSame([], $outcome->findings);
     }
 
     public function test_timeout_scenario_throws(): void

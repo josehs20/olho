@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\CreditLedgerService;
+use App\Services\GuestInvestigationService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -12,3 +13,8 @@ Artisan::command('inspire', function () {
 Schedule::call(fn () => app(CreditLedgerService::class)->releaseExpiredReservations())
     ->everyFiveMinutes()
     ->name('credits:release-expired');
+
+// Investigação avulsa não paga: expira rascunho + pedido, sem executar nada.
+Schedule::call(fn () => app(GuestInvestigationService::class)->expireUnpaid())
+    ->everyFiveMinutes()
+    ->name('guest:expire-unpaid');

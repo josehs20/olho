@@ -56,6 +56,20 @@ class InvestigationRun extends Model
         $this->save();
     }
 
+    /**
+     * Slugs dos módulos selecionados no run (contrato do `input_snapshot`).
+     *
+     * @return array<int, string>
+     */
+    public function moduleSlugs(): array
+    {
+        $modules = $this->input_snapshot['modules'] ?? [];
+
+        return is_array($modules)
+            ? array_values(array_filter($modules, 'is_string'))
+            : [];
+    }
+
     public function investigation(): BelongsTo
     {
         return $this->belongsTo(Investigation::class);

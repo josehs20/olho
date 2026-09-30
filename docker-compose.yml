@@ -74,6 +74,8 @@ services:
       - mysql-data:/var/lib/mysql
     networks:
       - osint
+    ports:
+      - "3306:3306" # Mapeia a porta 3306 do seu PC para a 3306 do container
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_PASSWORD}"]

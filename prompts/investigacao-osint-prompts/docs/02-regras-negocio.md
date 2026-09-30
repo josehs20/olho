@@ -10,7 +10,10 @@
 
 ## Investigação
 
-1. Toda investigação pertence a um usuário.
+1. Toda investigação pertence a um usuário — **exceto a investigação avulsa**
+   (prompt 41): comprada sem cadastro, com preço fixo e acesso exclusivo por
+   token de alta entropia, ela não tem dono e nunca aparece no histórico de
+   contas. Ver `35-investigacao-avulsa.md`.
 2. Uma investigação pode possuir várias execuções (`runs`).
 3. Cada run possui snapshot das entradas usadas.
 4. Cada módulo possui execução independente.
