@@ -469,3 +469,30 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   (3 pacotes de crédito + 1 preço avulso).
 - **Validação**: `php artisan test` — 301 passando, 4 ignorados (reais gated), 1310
   assertions; `./vendor/bin/pint --test` — PASS (255 arquivos); 56 rotas.
+
+
+## Etapa 40 — E2E real e auditoria
+
+> Executada após a etapa 41 (a etapa 41 assumia o prompt 40 concluído, mas os
+> estágios 25–41 estavam sem commit); a auditoria real foi feita em seguida, com o
+> repositório já commitado. Documento: `docs/36-e2e-real-auditoria.md`.
+
+- **Jornada completa com as 4 integrações reais** (MySQL + Redis + worker Docker):
+  investigação 26 / run 27 → maigret 18 resultados em 10.572 ms (0.6.6), sherlock 10
+  em 3.801 ms (0.16.2), whatsmyname 13 em 5.353 ms (dataset `062bcfe4…`), holehe 0
+  em 3.053 ms (1.61); 0 falhas, 0 timeouts, 0 retries.
+- **Pipeline completo**: 41 resultados → 28 descobertas (13 duplicatas em 9 grupos),
+  41 evidências, correlação score 40 (`internal_correlation_indicator`,
+  `identity_asserted = false`), relatório `report-manifest-v1` (`e9496ce1debb…`) com
+  8 limitações — incluindo os avisos reais do Maigret (`Bot protection` 10,53%,
+  `Access denied` 5,26%, 6 sites não avaliados) expostos ao usuário; nenhum bypass.
+- **Consumo**: 8 créditos reservados e 8 consumidos (cobra a consulta executada),
+  carteira 50 → 42, soma do ledger 42 (invariante), 0 reservas pendentes.
+- **Auditoria automatizada**: `RealPipelineAuditTest` (gated `OSINT_E2E=1`), ~99–100
+  assertions, força os adapters reais por `SourceRegistry::register()` + `healthCheck()`
+  e grava `storage/app/osint-audit/e2e-real-*.json` (duração, resultados, falhas,
+  tentativas, versões, consumo e resultado final por módulo).
+- **Docs**: `36-e2e-real-auditoria.md` (novo), `AUDIT.md`, `README.md` e nota de
+  sequência em `35-investigacao-avulsa.md`. Nenhum código de produção foi alterado.
+- **Testes**: 301 passando + 5 ignorados (4 integrações reais + auditoria); Pint PASS
+  (256 arquivos).

@@ -136,5 +136,5 @@ Validação: `php artisan test` — **301 passando, 4 ignorados (testes reais ga
   completo pela rota de token; não há "impersonação" de link no painel.
 - Retenção: a avulsa paga segue `config/privacy.php` (365 dias); não existe rotina
   de expurgo nova (apenas a expiração de rascunho não pago).
-- A etapa 40 (auditoria E2E com as ferramentas reais) continua pendente — este doc
-  é a `35` porque foi executado antes dela.
+- A etapa 40 (auditoria E2E com as ferramentas reais) foi executada depois desta
+  etapa: ver `36-e2e-real-auditoria.md`.

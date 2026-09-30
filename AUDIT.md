@@ -66,5 +66,26 @@ MVP funcional de ponta a ponta: cadastro/login, créditos (ledger imutável), PI
   pago, painel administrativo com origem/preço/pagamento e isolamento total do
   histórico de contas. Créditos, ledger e a regra de cobrança das contas não foram
   alterados (a avulsa não consome créditos).
-- **Pendente**: etapa 40 (auditoria E2E com Maigret/Sherlock/WhatsMyName/Holehe
-  reais, doc de integração e tag `etapa-40-e2e-real`).
+- **Etapa 40 — concluída**: ver seção abaixo e `docs/36-e2e-real-auditoria.md`.
+
+## Atualização — etapa 40 (E2E real e auditoria)
+
+- **Jornada completa com as 4 integrações reais** (MySQL + Redis + worker Docker):
+  investigação 26 / run 27 — maigret 18 resultados (10.572 ms, 0.6.6), sherlock 10
+  (3.801 ms, 0.16.2), whatsmyname 13 (5.353 ms, dataset `062bcfe4…`), holehe 0
+  (3.053 ms, 1.61); 0 falhas, 0 timeouts, 0 retries.
+- **Pipeline**: 41 resultados → 28 descobertas (13 duplicatas em 9 grupos), 41
+  evidências, correlação score 40 (`internal_correlation_indicator`,
+  `identity_asserted = false`), relatório `report-manifest-v1` (`e9496ce1debb…`)
+  com 8 limitações — incluindo os avisos reais do Maigret (`Bot protection` 10,53%,
+  `Access denied` 5,26%, 6 sites não avaliados); nenhum bypass foi usado.
+- **Consumo**: 8 reservados / 8 consumidos, carteira 50 → 42, soma do ledger 42
+  (invariante), 0 reservas pendentes.
+- **Auditoria automatizada**: `tests/Feature/RealPipelineAuditTest.php` (gated por
+  `OSINT_E2E=1`) — ~99–100 assertions em 20–28 s, forçando os adapters reais via
+  `SourceRegistry::register()` + `healthCheck()`, gravando
+  `storage/app/osint-audit/e2e-real-*.json` (duração, resultados, falhas,
+  tentativas, versões e consumo por módulo + resultado final).
+- **Testes**: 301 passando + 5 ignorados; Pint PASS (256 arquivos).
+- Relatório da etapa: `docs/36-e2e-real-auditoria.md`.
+

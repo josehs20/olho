@@ -157,3 +157,10 @@ cria conta, paga um preço fixo via PIX e acompanha o resultado pelo próprio li
 - **`.env`**: `GUEST_UNPAID_EXPIRATION_MINUTES` (padrão 1440) e
   `GUEST_ACCESS_TOKEN_TTL_DAYS` (padrão 365).
 - **Detalhes**: `prompts/investigacao-osint-prompts/docs/35-investigacao-avulsa.md`.
+
+- **Auditoria E2E real (etapa 40)**:
+  `prompts/investigacao-osint-prompts/docs/36-e2e-real-auditoria.md` — jornada
+  completa com Maigret/Sherlock/WhatsMyName/Holehe reais (41 resultados, 28
+  descobertas, relatório com limitações reais; 8/8 créditos consumidos). Teste
+  gated: `docker compose exec -e OSINT_E2E=1 app php artisan test --filter=RealPipelineAuditTest`,
+  que grava um relatório JSON em `storage/app/osint-audit/`.
