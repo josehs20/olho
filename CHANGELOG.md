@@ -497,3 +497,36 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   sequência em `35-investigacao-avulsa.md`. Nenhum código de produção foi alterado.
 - **Testes**: 301 passando + 5 ignorados (4 integrações reais + auditoria); Pint PASS
   (256 arquivos).
+
+
+## Etapa 42 — Redesign premium e conversão
+
+- **Direção de design própria**: tokens Tailwind v4 (`ink`/`mist`/`signal`),
+  superfícies premium, HUD discreto, microanimações leves e `prefers-reduced-motion`;
+  tipografia unificada em Instrument Sans (figtree removido das layouts).
+- **Landing reformulada** (`/`): hero "INVESTIGUE UMA PRESENÇA DIGITAL", CTA para a
+  jornada avulsa sem cadastro, **preço real do banco**, cobertura de plataformas
+  verificada nos catálogos das fontes ativas (WhatsApp explicitamente **fora do
+  escopo**), "como funciona", planos de créditos, o que vem no relatório, FAQ e CTA
+  final; SEO/OG básicos e `index,follow` só na landing.
+- **Jornada avulsa premium**: formulário com etapas e resumo de preço; PIX com
+  copiar; **processamento em etapas derivadas do estado real** (✓/◉/◌, sem
+  percentuais inventados); estado por fonte; **prévia de descobertas reais**
+  (plataforma, título, URL, confiança, horário) com skeleton/estado vazio; polling
+  que recarrega apenas quando há progresso real.
+- **Relatório premium**: mesmos dados/manifesto, com KPIs reais, tabela de fontes
+  (versão/tentativas/duração), descobertas com evidências, correlação explicada,
+  falhas e limitações visíveis e rodapé com hash do manifesto (print-friendly).
+- **Área autenticada e admin harmonizados** com o mesmo mapa de tokens; navegação
+  autenticada com Painel/Investigações/Nova/Créditos/Conta e menu mobile.
+- **Componentes reutilizáveis**: `x-btn`, `x-card`, `x-badge`, `x-status-badge`,
+  `x-stat`, `x-alert`, `x-section-heading`, `x-step-indicator`, `x-source-status`,
+  `x-platform-chip`, `x-empty-state`, `x-skeleton`; componentes Breeze re-skinados
+  sem mudar APIs; view da avulsa refatorada em partials.
+- **Sem mudanças de backend/pipeline/segurança**: única adição é leitura de estado
+  (`GuestInvestigationService::progress()` com descobertas/preview) e
+  `config/platforms.php`; nenhuma rota nova (apenas o **nome** `home` na raiz).
+- **Testes**: `ExampleTest` virou smoke test da landing (hero, CTA, honestidade do
+  WhatsApp); `LocalizationTest` ajustado; suíte **301 passando** + 5 ignorados,
+  Pint PASS (256 arquivos). Detalhes, problemas encontrados e melhorias futuras em
+  `docs/37-redesign-premium.md`.

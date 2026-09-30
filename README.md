@@ -164,3 +164,11 @@ cria conta, paga um preço fixo via PIX e acompanha o resultado pelo próprio li
   descobertas, relatório com limitações reais; 8/8 créditos consumidos). Teste
   gated: `docker compose exec -e OSINT_E2E=1 app php artisan test --filter=RealPipelineAuditTest`,
   que grava um relatório JSON em `storage/app/osint-audit/`.
+
+- **Redesign premium (etapa 42)**:
+  `prompts/investigacao-osint-prompts/docs/37-redesign-premium.md` — direção de
+  design (tokens Tailwind v4), landing orientada a conversão com preço real e
+  cobertura honesta de plataformas, jornada avulsa com processamento em etapas e
+  prévia de descobertas reais, relatório premium e componentes reutilizáveis
+  (`x-btn`, `x-card`, `x-badge`, `x-stat`, `x-step-indicator`, `x-source-status`…).
+  Assets: `npm run build` (Tailwind varre `resources/views`).

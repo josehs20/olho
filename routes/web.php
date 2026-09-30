@@ -16,11 +16,18 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Middleware\GuestAccessHeaders;
+use App\Models\CreditPackage;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome');
-});
+    return view('welcome', [
+        // Preço real da consulta avulsa + pacotes de créditos (nenhum valor fixo no HTML).
+        'guestPackage' => CreditPackage::query()->guestKind()->where('active', true)->orderBy('display_order')->first(),
+        'packages' => CreditPackage::query()->ofKind(CreditPackage::KIND_CREDITS)->where('active', true)->orderBy('display_order')->get(),
+        'platforms' => config('platforms.platforms', []),
+        'scope' => config('platforms.scope', []),
+    ]);
+})->name('home');
 
 Route::view('/privacy', 'legal.privacy')->name('legal.privacy');
 Route::view('/terms', 'legal.terms')->name('legal.terms');

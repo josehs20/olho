@@ -176,6 +176,30 @@ class GuestInvestigationService
                 'results' => $sourceRun->sourceResults->count(),
             ])->all();
 
+        // Prévia de descobertas: apenas representantes reais já gravados (nada é
+        // inferido ou simulado). A prévia cresce conforme as fontes terminam.
+        $discoveries = [];
+
+        if ($run !== null) {
+            foreach ($run->sourceRuns as $sourceRun) {
+                foreach ($sourceRun->sourceResults as $result) {
+                    if (! empty($result->metadata['duplicate_of'])) {
+                        continue;
+                    }
+
+                    $discoveries[] = [
+                        'platform' => $result->metadata['platform'] ?? $sourceRun->sourceDefinition?->name ?? $sourceRun->source,
+                        'source' => $sourceRun->source,
+                        'value' => $result->value,
+                        'title' => $result->title,
+                        'url' => $result->url,
+                        'confidence' => $result->confidence !== null ? (float) $result->confidence : null,
+                        'observed_at' => $result->observed_at?->toISOString(),
+                    ];
+                }
+            }
+        }
+
         return [
             'status' => $investigation->status,
             'run' => $run === null ? null : [
@@ -186,6 +210,10 @@ class GuestInvestigationService
                 'error_summary' => $run->error_summary,
             ],
             'sources' => $sources,
+            'discoveries' => $discoveries,
+            'discoveries_total' => count($discoveries),
+            'completed_sources' => $run === null ? 0 : $run->sourceRuns->where('status', 'completed')->count(),
+            'correlated' => $run !== null && is_array($run->metadata['correlation'] ?? null),
             'report_available' => $run !== null && ($run->report !== null
                 || in_array($run->status, [InvestigationRun::STATUS_COMPLETED, InvestigationRun::STATUS_PARTIAL], true)),
         ];
