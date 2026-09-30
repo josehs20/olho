@@ -36,27 +36,35 @@ MVP funcional de ponta a ponta: cadastro/login, créditos (ledger imutável), PI
 
 ## Pendências (próxima fase)
 
-1. **RF-17 Reexecução**: criar novo `run` mantendo o histórico (método `reexecute` no `InvestigationService`).
-2. **Retenção/purga automática**: `config/privacy.php` existe, mas falta job/schedule que apague dados por TTL.
-3. **Landing page**: `resources/views/welcome.blade.php` ainda é a página genérica do Laravel.
-4. **Uploads de imagem** (RF-07 menciona "arquivo de imagem conforme módulos"): fora do MVP; requer validação MIME/tamanho/extensão/nome aleatório.
-5. **`entities`/`entity_identifiers`**: opcionais para correlação futura (não criadas).
-6. **Snapshot HTML do relatório**: o HTML é renderizado sob demanda (view); persistir conteúdo estático fica para depois.
-7. **Base legal/textos finais** de privacidade/termos: validar com assessoria jurídica antes de produção.
-8. **Livewire**: não instalado (decisão: só se houver benefício real em dashboards/tabelas).
+Situação após a etapa 40 (auditoria E2E real):
+
+1. **RF-17 Reexecução** — **concluído** na etapa 39: `InvestigationService::rerun()` + policy `rerun` + rota
+   `POST /investigations/{id}/runs` + botão na UI (docs/34).
+2. **Retenção/purga automática** — `config/privacy.php` define os TTLs, mas não existe job/schedule de purga.
+   **Aberto** (fase 2): exige decisão de produto sobre o que apagar e o que preservar (ledger e auditoria têm
+   retenção maior e são imutáveis).
+3. **Landing page** — `/` ainda é a view genérica do Laravel; a jornada avulsa já tem entrada própria em
+   `/investigacao`. **Aberto**.
+4. **Uploads de imagem** (RF-07) — **fora do escopo do MVP** (exigiria validação de MIME/tamanho/extensão/nome aleatório).
+5. **`entities`/`entity_identifiers`** — **fora do escopo** (opcionais para correlação futura).
+6. **Snapshot HTML do relatório** — o manifesto já é congelado (`report-manifest-v1` + `content_hash`); persistir o
+   HTML em si tem baixo valor. **Aberto (baixa prioridade)**.
+7. **Base legal/textos finais** de privacidade/termos e a decisão sobre redistribuir imagem com o binário GPL-3.0 do
+   Holehe (docs/30): **depende de revisão jurídica** (terceiros).
+8. **Livewire** — não instalado (decisão mantida; o polling da avulsa usa JS nativo).
 
 ## Próximos passos técnicos
 
-- Implementar reexecução de investigação (RF-17).
-- Adicionar job de purga por retenção (`RetentionPurgeJob` + schedule).
-- Personalizar landing page.
-- (Fase 2) integrar fontes reais seguindo licença/termos (Maigret, Sherlock, WhatsMyName, Holehe).
+- Job/schedule de purga por retenção (`RetentionPurgeJob`), com regra explícita para preservar ledger e auditoria.
+- Landing page do produto (a jornada avulsa já tem entrada em `/investigacao`).
+- Revisão jurídica dos textos de privacidade/termos e da distribuição da imagem.
+- (Fase 2) gateway PIX real: QR Code gráfico e webhook assinado pelo provedor.
 
 
 ## Atualização — etapa 41 (investigação avulsa sem cadastro)
 
-- **Testes**: 301 passando + 4 ignorados (integrações reais gated) · 1310 assertions
-- **Pint**: PASS (255 arquivos)
+- **Testes**: 301 passando + 5 ignorados (4 integrações reais + auditoria gated) · 1310 assertions
+- **Pint**: PASS (256 arquivos)
 - **Rotas**: 56 (6 novas: jornada avulsa, token, status, relatório, confirmação PIX)
 - **Migrations**: +4 (`credit_packages.kind`, acesso avulso em `investigations`,
   `payments.guest_investigation_id`, `reports.user_id` nullable)

@@ -423,8 +423,9 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 
 ## Etapa 41 — Investigação avulsa (sem cadastro)
 
-> Executada antes da etapa 40 (auditoria E2E com as ferramentas reais), que
-> permanece pendente; por isso a documentação desta etapa é o `docs/35`.
+> Executada antes da etapa 40 (auditoria E2E com as ferramentas reais), que foi
+> executada logo em seguida; por isso a documentação desta etapa é o `docs/35` e a
+> da etapa 40 é o `docs/36`.
 
 - **Decisão do cliente (billing da avulsa)**: consulta avulsa é **pagamento fixo
   por consulta fixa, sem consumo de crédito** — "pagou, usou, acabou". Nenhuma

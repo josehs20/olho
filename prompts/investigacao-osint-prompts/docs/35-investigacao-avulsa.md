@@ -126,8 +126,9 @@ Validação: `php artisan test` — **301 passando, 4 ignorados (testes reais ga
 
 ## Limitações e pendências
 
-- Sem QR Code gráfico: o PIX é exibido como copia-e-cola (mesmo comportamento da
-  jornada de créditos; o gateway real definirá a imagem).
+- O PIX é exibido como **copia e cola** — o §6 do prompt 41 aceita "copia e cola
+  e/ou QR Code", então o requisito está atendido sem nova dependência; a imagem do
+  QR fica para o gateway real (mesma decisão da jornada de créditos).
 - Não há estorno automático de avulsa (não previsto no prompt 41); pagamento
   tardio é sempre executado.
 - `credits_reserved`/`credits_consumed` de um run avulso são 0 por definição — o
