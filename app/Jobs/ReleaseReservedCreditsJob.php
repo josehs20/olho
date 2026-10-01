@@ -42,7 +42,15 @@ class ReleaseReservedCreditsJob implements ShouldQueue
         // Investigação avulsa (prompt 41): preço fixo pago, sem créditos — não há
         // reserva a consumir ou estornar. A etapa fica registrada para manter o
         // pipeline observável. A regra das contas (pós-39) permanece intacta.
+        // O custo interno executado é registrado nos metadados (prompt 43) para
+        // controle/auditoria, sem movimentar wallet ou ledger.
         if ($run->investigation?->isGuest()) {
+            $metadata = $run->metadata ?? [];
+            data_set($metadata, 'credit_cost.executed_credits', $this->executedCost($run));
+            data_set($metadata, 'credit_cost.executed_at', now()->toISOString());
+            $run->metadata = $metadata;
+            $run->save();
+
             $run->markPipelineStage('credits_released_at');
 
             return;
@@ -82,5 +90,33 @@ class ReleaseReservedCreditsJob implements ShouldQueue
         $sourceRun = $run->sourceRuns->firstWhere('source', $reservation->source);
 
         return $sourceRun !== null && (int) $sourceRun->attempts > 0;
+    }
+
+    /**
+     * Custo interno efetivamente executado de um run sem wallet (avulsa).
+     *
+     * Soma o snapshot por módulo gravado na abertura (`metadata.credit_cost.
+     * breakdown`) apenas para módulos consultados (`attempts > 0`) — a mesma
+     * regra de cobrança das contas. Runs anteriores ao snapshot usam o custo
+     * atual da fonte como fallback. Informativo: nenhum wallet/ledger é movido.
+     */
+    private function executedCost(InvestigationRun $run): int
+    {
+        $breakdown = data_get($run->metadata, 'credit_cost.breakdown', []);
+        $breakdown = is_array($breakdown) ? $breakdown : [];
+
+        $total = 0;
+
+        foreach ($run->sourceRuns as $sourceRun) {
+            if ((int) $sourceRun->attempts <= 0) {
+                continue;
+            }
+
+            $total += (int) ($breakdown[$sourceRun->source]
+                ?? $sourceRun->sourceDefinition?->cost_credits
+                ?? 0);
+        }
+
+        return $total;
     }
 }

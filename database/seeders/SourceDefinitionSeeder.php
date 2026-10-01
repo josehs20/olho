@@ -10,8 +10,9 @@ use Illuminate\Database\Seeder;
  * no `SourceRegistry`. Sem estas linhas, `/investigations/create` não oferece
  * nenhum módulo e o pipeline não executa nada.
  *
- * Determinístico e idempotente. Preserva a coluna `active`, que é operada pelo
- * admin em `/admin/sources` (reexecutar a seed não reativa fonte desligada).
+ * Determinístico e idempotente. Preserva as colunas operadas pelo admin em
+ * `/admin/sources` (reexecutar a seed não reativa fonte desligada **nem**
+ * sobrescreve o `cost_credits` configurado — prompt 43).
  */
 class SourceDefinitionSeeder extends Seeder
 {
@@ -36,7 +37,6 @@ class SourceDefinitionSeeder extends Seeder
             $definition->fill([
                 'name' => $source['name'],
                 'type' => $source['type'],
-                'cost_credits' => $source['cost_credits'],
                 'timeout' => $source['timeout'],
                 // Reflete a política real de retry do ExecuteSourceJob.
                 'retry_policy' => ['tries' => 2, 'backoff' => [10, 60]],
@@ -44,6 +44,9 @@ class SourceDefinitionSeeder extends Seeder
 
             if (! $definition->exists) {
                 $definition->active = true;
+                // Custo inicial apenas na criação: depois disso o valor pertence
+                // ao administrador (prompt 43) e a seed não pode revertê-lo.
+                $definition->cost_credits = $source['cost_credits'];
             }
 
             $definition->save();

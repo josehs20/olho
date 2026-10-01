@@ -530,3 +530,38 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   WhatsApp); `LocalizationTest` ajustado; suíte **301 passando** + 5 ignorados,
   Pint PASS (256 arquivos). Detalhes, problemas encontrados e melhorias futuras em
   `docs/37-redesign-premium.md`.
+
+## Etapa 43 — Custo em créditos por requisição configurável
+
+- **Auditoria** (`docs/38-custo-creditos-configuravel.md`): o custo já vivia em
+  `source_definitions.cost_credits` (reserva por módulo com transação+lock e
+  chave `run-{id}-source-{slug}-reserve`, consumo em
+  `ReleaseReservedCreditsJob`, estorno do nunca consultado), mas **não era
+  editável** no painel e o `SourceDefinitionSeeder` sobrescrevia o valor em
+  reseeds. Valores encontrados: mocks = 1; maigret/sherlock/whatsmyname/holehe = 2.
+- **Configuração pelo admin**: `PATCH /admin/sources/{source}/cost` +
+  `AdminSourceCostRequest` (inteiro, `0..1000`, `authorize()` revalida admin) e
+  campo editável em `/admin/sources` com a última alteração visível (data, quem,
+  de -> para). Toda alteração registra `admin.source_cost_update` no
+  `AuditLogger` existente (ator, IP, slug, valores anterior/novo) — sem novo
+  sistema de auditoria e sem migration.
+- **Histórico preservado**: a reserva de todos os módulos acontece na abertura
+  do run e congela o valor em `credit_reservations.amount`; alterar 10 -> 25
+  vale só para execuções futuras. O run passa a gravar
+  `metadata.credit_cost` (`total`, `breakdown`, `snapshot_at`) na abertura —
+  auditável também para módulos de custo 0 e para a avulsa.
+- **Zero créditos**: comportamento explícito — sem reserva, executa e finaliza
+  com `credits_reserved = credits_consumed = 0`.
+- **Avulsa (prompt 41) intacta**: mesma coluna de custo, nenhuma wallet/reserva/
+  ledger e preço financeiro não tocado; custo interno registrado em
+  `metadata.credit_cost` (`executed_credits` no encerramento, mesma regra de
+  módulo consultado) apenas para controle/auditoria.
+- **Seeder**: `cost_credits` gravado apenas na criação da linha (como `active`)
+  — reexecutar a seed não reverte o valor administrado.
+- **Regra de cobrança não alterada** (como determina o prompt): vigente é a da
+  consulta executada (prompt 39/docs 34); a divergência textual do prompt 43
+  ("FAILED/TIMEOUT -> não cobra") fica registrada em `docs/38`.
+- **Testes**: `AdminSourceCostTest` (7 cenários: alteração+auditoria,
+  autorização, validação, custo novo só em execução nova com ledger consistente,
+  custo zero, custo interno da avulsa, re-seed). Suíte **309 passando + 5
+  ignorados** (integrações reais gated), Pint PASS (259 arquivos).

@@ -119,6 +119,21 @@ class StartInvestigationRunJob implements ShouldBeUnique, ShouldQueue
         }
 
         // (2) Abre a execução.
+        //     Snapshot do custo por módulo (prompt 43): gravado nos metadados do
+        //     run para auditoria e para o custo interno da avulsa (sem wallet).
+        //     Na conta, a reserva abaixo já preserva o valor aplicado em
+        //     `credit_reservations.amount` — alterar o custo depois nunca
+        //     recalcula runs antigos.
+        $metadata = $run->metadata ?? [];
+        $metadata['credit_cost'] = [
+            'total' => $totalCost,
+            'breakdown' => $selection['applicable']
+                ->mapWithKeys(fn (SourceDefinition $definition) => [$definition->slug => (int) $definition->cost_credits])
+                ->all(),
+            'snapshot_at' => now()->toISOString(),
+        ];
+        $run->metadata = $metadata;
+
         $run->status = InvestigationRun::STATUS_RUNNING;
         $run->started_at = now();
         $run->credits_reserved = $isGuest ? 0 : $totalCost;

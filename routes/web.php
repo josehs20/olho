@@ -54,6 +54,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/investigations/{investigation}', [AdminInvestigationController::class, 'show'])->name('investigations.show');
 
     Route::get('/sources', [AdminSourceController::class, 'index'])->name('sources.index');
+    Route::patch('/sources/{source}/cost', [AdminSourceController::class, 'updateCost'])->name('sources.update-cost');
     Route::post('/sources/{source}/toggle', [AdminSourceController::class, 'toggle'])->name('sources.toggle');
 
     Route::get('/audit', [AdminAuditController::class, 'index'])->name('audit.index');

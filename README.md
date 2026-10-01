@@ -172,3 +172,10 @@ cria conta, paga um preço fixo via PIX e acompanha o resultado pelo próprio li
   prévia de descobertas reais, relatório premium e componentes reutilizáveis
   (`x-btn`, `x-card`, `x-badge`, `x-stat`, `x-step-indicator`, `x-source-status`…).
   Assets: `npm run build` (Tailwind varre `resources/views`).
+
+- **Custo por requisição configurável (etapa 43)**:
+  `prompts/investigacao-osint-prompts/docs/38-custo-creditos-configuravel.md` —
+  o administrador edita os créditos consumidos por módulo em `/admin/sources`
+  (validado, auditado com valor anterior, sem migration); execuções antigas
+  mantêm o custo congelado na reserva e a avulsa registra o custo internamente
+  sem tocar wallet/ledger.
