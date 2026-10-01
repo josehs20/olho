@@ -1,4 +1,4 @@
-{{-- Marca do produto: lente de investigação (mira + sinal) — "Investigação Pública". --}}
+{{-- Marca do produto "Olho": símbolo de investigação (lente/olho que observa). --}}
 <svg {{ $attributes->merge(['viewBox' => '0 0 48 48', 'fill' => 'none', 'aria-hidden' => 'true', 'role' => 'img']) }}>
     <defs>
         <linearGradient id="brand-signal" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">

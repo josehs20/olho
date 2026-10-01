@@ -22,10 +22,31 @@ class ExampleTest extends TestCase
 
         $this->get('/')
             ->assertOk()
-            ->assertSee('INVESTIGUE UMA')
-            ->assertSee('PRESENÇA DIGITAL')
-            ->assertSee('INICIAR INVESTIGAÇÃO')
+            ->assertSee('VOCÊ DÁ A PISTA.')
+            ->assertSee('O OLHO PROCURA.')
+            ->assertSee('INVESTIGAR AGORA')
             ->assertSee('WhatsApp')
             ->assertSee('fora do escopo');
+    }
+
+    /**
+     * As tags SEO/OG precisam sair como HTML no <head>, não como texto visível.
+     * Regressão: passar HTML por atributo de componente (sanitizeComponentAttribute)
+     * escapa a string e o navegador exibe as tags na tela.
+     */
+    public function test_landing_renders_seo_meta_tags_as_html_instead_of_text(): void
+    {
+        $this->seed(CreditPackageSeeder::class);
+
+        $response = $this->get('/');
+
+        $response->assertOk()
+            ->assertSee('<meta name="description" content="', false)
+            ->assertSee('<meta property="og:title" content="', false)
+            ->assertSee('<meta property="og:description" content="', false)
+            ->assertSee('<meta property="og:type" content="website">', false)
+            ->assertSee('<meta name="twitter:card" content="summary">', false)
+            ->assertSee('<meta name="robots" content="index, follow">', false)
+            ->assertDontSee('&lt;meta', false);
     }
 }

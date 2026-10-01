@@ -1,11 +1,11 @@
 <x-public-layout :title="__('Investigação avulsa — sem cadastro')">
     <x-slot name="header">
-        <p class="eyebrow">{{ __('Consulta avulsa') }}</p>
+        <p class="eyebrow">{{ __('Nova investigação') }}</p>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight text-mist-50 sm:text-3xl">
-            {{ __('O que você deseja investigar?') }}
+            {{ __('O que você quer investigar?') }}
         </h1>
         <p class="mt-2 max-w-2xl text-sm text-mist-400">
-            {{ __('Informe apenas dados públicos. As fontes aplicáveis são consultadas automaticamente e você acompanha tudo pelo link de acesso.') }}
+            {{ __('O Olho vai procurar sinais públicos relacionados ao que você informar. Informe apenas dados públicos e acompanhe tudo pelo link de acesso.') }}
         </p>
 
         <x-step-indicator class="mt-6" :steps="[__('Identificador'), __('Revisão'), __('Pagamento'), __('Investigação'), __('Resultado')]" :current="0" />
@@ -62,7 +62,7 @@
                     </div>
 
                     <p class="text-xs leading-relaxed text-mist-500">
-                        {{ __('Informe pelo menos um identificador (username, e-mail ou telefone). Os demais campos ajudam a filtrar correspondências.') }}
+                        {{ __('Informe pelo menos um identificador (username, e-mail ou telefone). Um nome pode levar a muitos lugares — os demais campos ajudam a filtrar correspondências.') }}
                     </p>
                 </fieldset>
 
@@ -86,14 +86,15 @@
         </x-card>
 
         <div class="space-y-4">
-            <x-card eyebrow="{{ __('Investiação avulsa') }}" padding="p-5">
+            <x-card eyebrow="{{ __('Investigação avulsa') }}" padding="p-5">
                 <p class="text-3xl font-semibold tabular-nums text-mist-50">
                     {{ __('R$') }} {{ number_format($price->price_cents / 100, 2, ',', '.') }}
                 </p>
-                <p class="mt-1 text-xs text-mist-400">{{ __('Pagamento único via PIX') }}</p>
+                <p class="mt-1 text-xs text-mist-400">{{ __('Pagamento único via PIX · sem assinatura · sem cadastro') }}</p>
+                <p class="mt-3 text-xs leading-relaxed text-mist-500">{{ __('O Olho está esperando a sua pista.') }}</p>
 
                 <ul class="mt-5 space-y-2.5 text-sm text-mist-300">
-                    @foreach ([
+                @foreach ([
                         __('Sem cadastro obrigatório'),
                         __('Sem assinatura'),
                         __('Acesso ao resultado por link exclusivo'),
@@ -110,7 +111,10 @@
             <x-card padding="p-5">
                 <p class="eyebrow">{{ __('Transparência') }}</p>
                 <p class="mt-2 text-xs leading-relaxed text-mist-400">
-                    {{ __('Consultamos apenas fontes públicas. Não acessamos conteúdo privado, não burlamos autenticação, CAPTCHA ou paywall e não afirmamos identidade: correspondência possível não é confirmação.') }}
+                    {{ __('O Olho trabalha com informações públicas disponíveis nas fontes consultadas. Não acessamos conteúdo privado, não burlamos autenticação, CAPTCHA ou paywall e não afirmamos identidade: correspondência possível não é confirmação.') }}
+                </p>
+                <p class="mt-2 text-xs leading-relaxed text-mist-500">
+                    {{ __('Resultados dependem da disponibilidade, visibilidade e condições de acesso de cada fonte.') }}
                 </p>
                 <p class="mt-3 text-xs text-mist-500">
                     <a href="{{ route('legal.privacy') }}" class="underline transition hover:text-mist-300">{{ __('Política de privacidade') }}</a>

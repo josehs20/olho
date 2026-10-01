@@ -152,7 +152,7 @@ class SourceRunPersistenceTest extends TestCase
         $this->actingAs($user)
             ->get(route('investigations.report', [$investigation, $run]))
             ->assertOk()
-            ->assertSee('Fontes consultadas')
+            ->assertSee('FONTES CONSULTADAS')
             ->assertSee('Resultados')
             ->assertSee('A fonte excedeu o tempo limite.');
 

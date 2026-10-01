@@ -1,6 +1,14 @@
 <x-card eyebrow="{{ __('Descobertas') }}" :title="$discoveriesTitle" subtitle="{{ __('Somente dados retornados pelas fontes. Nada é simulado ou preenchido artificialmente.') }}">
     @if ($visibleDiscoveries === [])
-        <x-empty-state title="{{ __('Nenhuma descoberta registrada até agora') }}" description="{{ __('Assim que uma fonte retornar um perfil, site ou username público, ele aparece aqui com a origem e o momento da observação.') }}" />
+        @if ($reportAvailable)
+            <x-empty-state
+                title="{{ __('O Olho não encontrou ocorrências nas fontes consultadas.') }}"
+                description="{{ __('Isso não significa ausência da pessoa ou da conta: depende do que existe publicamente para este identificador. O relatório detalha cada fonte consultada e suas limitações.') }}" />
+        @else
+            <x-empty-state
+                title="{{ __('A busca continua...') }}"
+                description="{{ __('Assim que uma fonte pública retornar um perfil, site ou username, ele aparece aqui com a origem e o momento da observação.') }}" />
+        @endif
     @else
         @include('guest.investigations.partials.discovery-list', ['discoveries' => $visibleDiscoveries])
 

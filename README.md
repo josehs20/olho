@@ -1,6 +1,9 @@
-# Investigação Pública
+# Olho
 
-Plataforma Laravel de investigação de **presença digital pública** (OSINT). O usuário compra créditos e os usa para executar módulos de pesquisa sobre informações públicas. Resultados apontam para fontes/evidências; uma correspondência não é identidade confirmada.
+Plataforma Laravel de investigação de **presença digital pública** (OSINT).
+Nome de marca: **Olho** — "Você dá a pista. O Olho procura."
+(nome de trabalho anterior do repositório: "Investigação Pública".)
+O usuário compra créditos e os usa para executar módulos de pesquisa sobre informações públicas. Resultados apontam para fontes/evidências; uma correspondência não é identidade confirmada.
 
 ## Stack
 
@@ -179,3 +182,10 @@ cria conta, paga um preço fixo via PIX e acompanha o resultado pelo próprio li
   (validado, auditado com valor anterior, sem migration); execuções antigas
   mantêm o custo congelado na reserva e a avulsa registra o custo internamente
   sem tocar wallet/ledger.
+
+- **Identidade verbal "Olho" (etapa 44)**:
+  `prompts/investigacao-osint-prompts/docs/39-identidade-verbal.md` — marca
+  **Olho** (`APP_NAME`), assinatura "Você dá a pista. O Olho procura.", hero e
+  CTAs de conversão, seção "O QUE O OLHO PROCURA?" com hooks por plataforma,
+  jornada avulsa e relatório com a voz da marca — sem promessas, resultados
+  inventados ou acesso a conteúdo privado.

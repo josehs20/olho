@@ -565,3 +565,39 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   autorização, validação, custo novo só em execução nova com ledger consistente,
   custo zero, custo interno da avulsa, re-seed). Suíte **309 passando + 5
   ignorados** (integrações reais gated), Pint PASS (259 arquivos).
+
+## Etapa 44 — Identidade verbal da marca Olho
+
+- **Marca**: `APP_NAME="Olho"` (`.env`/`.env.example`); assinatura
+  **"Você dá a pista. O Olho procura."**; voz curta e de ação, sem promessas,
+  sensacionalismo ou "olho de Deus" como afirmação. Guia completo em
+  `docs/39-identidade-verbal.md`.
+- **Landing**: novo hero **"VOCÊ DÁ A PISTA. / O OLHO PROCURA."** (variações
+  avaliadas: pergunta e lista), CTA principal **INVESTIGAR AGORA** (hero, preço
+  e CTA final) e `DEIXAR O OLHO PROCURAR` como contextual; seção
+  **"O QUE O OLHO PROCURA?"** com 01 Username · 02 Redes sociais · 03 E-mail ·
+  04 Web · 05 Conexões; microcopies de curiosidade por plataforma
+  (`platform-chip` ganhou o prop **hook**) com Instagram em destaque; WhatsApp
+  segue **fora do escopo** (mensagens privadas nunca são acessadas).
+- **Jornada avulsa**: "O que você quer investigar?" + "O Olho vai procurar
+  sinais públicos…"; processamento com etapas na voz do Olho mapeadas a estados
+  **reais** e título derivado do estado ("O Olho está esperando a sua pista" →
+  "O OLHO ESTÁ PROCURANDO..." → "O QUE O OLHO ENCONTROU"); pagamento
+  "Sua investigação está pronta para começar" + CTA **LIBERAR INVESTIGAÇÃO**;
+  descobertas "O Olho encontrou :count descobertas" e, sem resultado,
+  "O Olho não encontrou ocorrências nas fontes consultadas." com a ressalva de
+  que isso **não** significa ausência da pessoa.
+- **Relatório/painel**: "RELATÓRIO OLHO" + "Mapa de descobertas" e seções em
+  caixa alta (RESUMO, ENTRADAS INFORMADAS, FONTES CONSULTADAS, DESCOBERTAS,
+  POSSÍVEIS CONEXÕES, FALHAS E LIMITAÇÕES) sem tocar nos dados; painel
+  autenticado com header "Painel".
+- **SEO**: title "Olho — investigação de presença digital", description e
+  Open Graph/Twitter (`og:site_name`, `twitter:card`…) com termos naturais
+  (presença digital, username, redes sociais, fontes públicas) — sem stuffing.
+- **Sem backend**: nenhum adapter, job, fila, crédito, pagamento, banco ou regra
+  de correlação foi alterado; também removido um botão duplicado (artefato) na
+  página de criação guest e restaurado o card de transparência.
+- **Testes**: copy atualizada em `ExampleTest`, `LocalizationTest`, `ReportTest`
+  e `SourceRunPersistenceTest`; suíte **309 passando + 5 ignorados**, Pint PASS
+  (259 arquivos); verificação manual HTTP de landing, `/investigacao`, `/login`
+  e `/up`.

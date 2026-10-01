@@ -1,4 +1,4 @@
-<x-card eyebrow="{{ __('Processamento') }}" :title="$processingTitle">
+<x-card eyebrow="{{ __('Investigação') }}" :title="$processingTitle">
     <ul class="space-y-3">
         @foreach ($stages as $index => $stage)
             @php

@@ -10,12 +10,12 @@
     };
 
     $stages = [
-        ['label' => __('Preparando fontes'), 'done' => $progress['run'] !== null],
-        ['label' => __('Consultando usernames'), 'done' => $progress['sources'] !== []],
-        ['label' => __('Verificando plataformas'), 'done' => $progress['completed_sources'] > 0],
-        ['label' => __('Consolidando descobertas'), 'done' => $progress['discoveries_total'] > 0],
-        ['label' => __('Correlacionando evidências'), 'done' => (bool) $progress['correlated']],
-        ['label' => __('Gerando relatório'), 'done' => (bool) $progress['report_available']],
+        ['label' => __('O Olho está iniciando a busca...'), 'done' => $progress['run'] !== null],
+        ['label' => __('Verificando usernames...'), 'done' => $progress['sources'] !== []],
+        ['label' => __('Consultando fontes públicas...'), 'done' => $progress['completed_sources'] > 0],
+        ['label' => __('Organizando sinais encontrados...'), 'done' => $progress['discoveries_total'] > 0],
+        ['label' => __('Conectando pistas entre fontes...'), 'done' => (bool) $progress['correlated']],
+        ['label' => __('Montando sua investigação...'), 'done' => (bool) $progress['report_available']],
     ];
 
     $firstPending = null;
@@ -29,7 +29,16 @@
 
     $run = $progress['run'];
     $runError = $run['error_summary'] ?? null;
-    $processingTitle = $run === null ? __('Aguardando liberação') : __('INVESTIGAÇÃO EM ANDAMENTO');
+
+    // Título do processamento derivado do estado real (prompt 44): nunca
+    // anuncia descoberta que ainda não existe nem finge execução não iniciada.
+    $processingTitle = match (true) {
+        (bool) $progress['report_available'] => $progress['discoveries_total'] > 0
+            ? __('O QUE O OLHO ENCONTROU')
+            : __('INVESTIGAÇÃO CONCLUÍDA'),
+        ! $isPaid || $run === null => __('O Olho está esperando a sua pista'),
+        default => __('O OLHO ESTÁ PROCURANDO...'),
+    };
 
     $sourceRuns = $investigation->currentRun?->sourceRuns ?? collect();
 
@@ -38,9 +47,16 @@
     $totalDiscoveries = count($discoveries);
     $hiddenCount = max(0, $totalDiscoveries - count($visibleDiscoveries));
 
-    $discoveriesTitle = $progress['discoveries_total'] > 0
-        ? trans_choice(':count descoberta real|:count descobertas reais', $progress['discoveries_total'], ['count' => $progress['discoveries_total']])
-        : __('Ainda sem descobertas');
+    // Revelação condicionada ao estado real: só anuncia descoberta existente.
+    $discoveriesTitle = match (true) {
+        $progress['discoveries_total'] > 0 => trans_choice(
+            'O Olho encontrou :count descoberta|O Olho encontrou :count descobertas',
+            $progress['discoveries_total'],
+            ['count' => $progress['discoveries_total']],
+        ),
+        (bool) $progress['report_available'] => __('O Olho não encontrou ocorrências'),
+        default => __('O Olho ainda está procurando'),
+    };
 
     $reportAvailable = (bool) $progress['report_available'];
     $accessUrl = request()->url();

@@ -13,7 +13,7 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h2 class="text-xl font-semibold leading-tight text-mist-100">
-                {{ __('Relatório') }} — {{ $investigation->title }}
+                {{ __('RELATÓRIO OLHO') }} — {{ $investigation->title }}
             </h2>
             <a href="{{ $backUrl ?? route('investigations.show', $investigation) }}" class="print:hidden text-sm text-mist-300 hover:text-mist-100">
                 &larr; {{ __('Voltar') }}
@@ -28,7 +28,8 @@
                     {{-- Cabeçalho: identificação do run e do relatório --}}
                     <div class="flex items-start justify-between border-b border-line pb-6">
                         <div>
-                            <h1 class="text-2xl font-bold text-mist-100">{{ $investigation->title }}</h1>
+                            <p class="eyebrow">{{ __('Mapa de descobertas') }}</p>
+                            <h1 class="mt-1 text-2xl font-bold text-mist-100">{{ $investigation->title }}</h1>
                             <p class="mt-1 text-sm text-mist-400">
                                 {{ __('Investigação') }} #{{ $investigation->id }} · {{ __('Run') }} #{{ $run->run_number }}
                                 · <x-status-badge :status="$run->status" class="align-middle" />
@@ -48,7 +49,7 @@
 
                     {{-- Resumo em indicadores (mesmos dados do manifesto) --}}
                     <section class="mt-6">
-                        <h2 class="text-lg font-semibold text-mist-50">{{ __('Resumo') }}</h2>
+                        <h2 class="text-lg font-semibold text-mist-50">{{ __('RESUMO') }}</h2>
 
                         <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                             <x-stat :label="__('Status')" :value="__((string) $run->status)" />
@@ -62,7 +63,7 @@
 
                     {{-- Identificadores pesquisados --}}
                     <section class="mt-8">
-                        <h2 class="text-lg font-semibold text-mist-100">{{ __('Entradas informadas') }}</h2>
+                        <h2 class="text-lg font-semibold text-mist-100">{{ __('ENTRADAS INFORMADAS') }}</h2>
                         <dl class="mt-2 grid grid-cols-2 gap-2 text-sm">
                             @forelse ($manifest['identifiers'] ?? [] as $key => $value)
                                 <dt class="font-medium text-mist-400">{{ $key }}</dt>
@@ -75,7 +76,7 @@
 
                     {{-- Fontes consultadas e status de cada uma --}}
                     <section class="mt-8">
-                        <h2 class="text-lg font-semibold text-mist-100">{{ __('Fontes consultadas') }}</h2>
+                        <h2 class="text-lg font-semibold text-mist-100">{{ __('FONTES CONSULTADAS') }}</h2>
                         <div class="mt-3 overflow-x-auto">
                             <table class="min-w-full text-sm">
                                 <thead>
@@ -116,7 +117,7 @@
 
                     {{-- Descobertas consolidadas (todas as fontes observadoras) --}}
                     <section class="mt-8">
-                        <h2 class="text-lg font-semibold text-mist-100">{{ __('Descobertas') }}</h2>
+                        <h2 class="text-lg font-semibold text-mist-100">{{ __('DESCOBERTAS') }}</h2>
                         @forelse ($discoveries as $discovery)
                             <div class="mt-4 rounded-md bg-ink-850/60 p-4">
                                 <div class="flex items-start justify-between">
@@ -175,7 +176,7 @@
 
                     {{-- Correlação explicável: fatores, evidências e limitações --}}
                     <section class="mt-8">
-                        <h2 class="text-lg font-semibold text-mist-100">{{ __('Correlação') }}</h2>
+                        <h2 class="text-lg font-semibold text-mist-100">{{ __('POSSÍVEIS CONEXÕES') }}</h2>
                         @if ($correlation)
                             <p class="mt-2 text-sm text-mist-100">
                                 {{ __('Indicador interno') }}:
@@ -236,7 +237,7 @@
 
                     {{-- Falhas e limitações: nada é escondido para parecer completo --}}
                     <section class="mt-8">
-                        <h2 class="text-lg font-semibold text-mist-100">{{ __('Falhas e limitações') }}</h2>
+                        <h2 class="text-lg font-semibold text-mist-100">{{ __('FALHAS E LIMITAÇÕES') }}</h2>
 
                         @forelse ($failedSources as $source)
                             <p class="mt-2 text-sm text-mist-300">

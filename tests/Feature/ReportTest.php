@@ -56,8 +56,8 @@ class ReportTest extends TestCase
         $response = $this->actingAs($user)->get("/investigations/{$investigation->id}/runs/{$run->id}/report");
 
         $response->assertOk();
-        $response->assertSee('Resumo');
-        $response->assertSee('Entradas informadas');
+        $response->assertSee('RESUMO');
+        $response->assertSee('ENTRADAS INFORMADAS');
         $response->assertSee('GitHub joao');
         $response->assertSee('possível correspondência');
     }
@@ -80,10 +80,10 @@ class ReportTest extends TestCase
 
         $response->assertOk();
         // Identificadores pesquisados e fontes consultadas com status.
-        $response->assertSee('Entradas informadas');
+        $response->assertSee('ENTRADAS INFORMADAS');
         $response->assertSee('username');
         $response->assertSee('joao');
-        $response->assertSee('Fontes consultadas');
+        $response->assertSee('FONTES CONSULTADAS');
         $response->assertSee('Maigret');
         $response->assertSee('s');
         // Descoberta com URL, data/hora de observação e evidência.
@@ -119,7 +119,7 @@ class ReportTest extends TestCase
         $response = $this->actingAs($user)->get("/investigations/{$investigation->id}/runs/{$run->id}/report");
 
         $response->assertOk();
-        $response->assertSee('Falhas e limitações');
+        $response->assertSee('FALHAS E LIMITAÇÕES');
         $response->assertSee('fonte indisponível');
         $response->assertSee('A execução excedeu o tempo limite.');
         $response->assertSee('não é aplicável aos dados informados');

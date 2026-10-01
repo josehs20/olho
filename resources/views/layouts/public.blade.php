@@ -8,7 +8,10 @@
 
         <title>{{ $attributes->get('title', config('app.name', 'Investigação Pública')) }}</title>
 
-        {!! $attributes->get('meta', '') !!}
+        {{-- Head adicional da página (SEO/OG). Use @push('meta') na view chamadora;
+             não passe HTML por atributo de componente: ele é escapado pelo
+             compilador Blade e apareceria como texto puro na tela. --}}
+        @stack('meta')
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
@@ -26,7 +29,7 @@
 
                 <div class="hidden items-center gap-6 text-sm text-mist-300 lg:flex">
                     <a href="{{ url('/#como-funciona') }}" class="transition hover:text-mist-50">{{ __('Como funciona') }}</a>
-                    <a href="{{ url('/#o-que-investigamos') }}" class="transition hover:text-mist-50">{{ __('O que investigamos') }}</a>
+                    <a href="{{ url('/#o-que-investigamos') }}" class="transition hover:text-mist-50">{{ __('O que o Olho procura') }}</a>
                     <a href="{{ url('/#preco') }}" class="transition hover:text-mist-50">{{ __('Preço') }}</a>
                     <a href="{{ url('/#perguntas') }}" class="transition hover:text-mist-50">{{ __('Dúvidas') }}</a>
                 </div>
@@ -78,10 +81,13 @@
                 <div class="lg:col-span-2">
                     <div class="flex items-center gap-2.5">
                         <x-application-logo class="h-8 w-8 text-mist-400" />
-                        <span class="text-sm font-semibold text-mist-50">{{ config('app.name', 'Investigação Pública') }}</span>
+                        <span class="text-sm font-semibold text-mist-50">{{ config('app.name', 'Olho') }}</span>
                     </div>
-                    <p class="mt-3 max-w-md text-xs leading-relaxed text-mist-400">
-                        {{ __('Investigação de presença digital em fontes públicas. Os resultados dependem do que estiver publicamente disponível e nunca constituem confirmação de identidade.') }}
+                    <p class="mt-3 max-w-md text-xs font-medium uppercase tracking-[0.18em] text-mist-300">
+                        {{ __('Você dá a pista. O Olho procura.') }}
+                    </p>
+                    <p class="mt-2 max-w-md text-xs leading-relaxed text-mist-400">
+                        {{ __('O Olho trabalha com informações públicas disponíveis nas fontes consultadas. Os resultados dependem da disponibilidade, visibilidade e condições de acesso de cada fonte e nunca constituem confirmação de identidade.') }}
                     </p>
                 </div>
 
@@ -89,7 +95,7 @@
                     <p class="eyebrow">{{ __('Plataforma') }}</p>
                     <ul class="mt-3 space-y-2 text-sm text-mist-300">
                         <li><a class="transition hover:text-mist-50" href="{{ url('/#como-funciona') }}">{{ __('Como funciona') }}</a></li>
-                        <li><a class="transition hover:text-mist-50" href="{{ url('/#o-que-investigamos') }}">{{ __('O que investigamos') }}</a></li>
+                        <li><a class="transition hover:text-mist-50" href="{{ url('/#o-que-investigamos') }}">{{ __('O que o Olho procura') }}</a></li>
                         <li><a class="transition hover:text-mist-50" href="{{ url('/#preco') }}">{{ __('Preço') }}</a></li>
                         <li><a class="transition hover:text-mist-50" href="{{ route('guest.investigations.create') }}">{{ __('Investigar agora') }}</a></li>
                     </ul>

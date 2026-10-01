@@ -13,8 +13,8 @@ class LocalizationTest extends TestCase
     {
         $this->get('/')
             ->assertOk()
-            ->assertSee('INVESTIGUE UMA')
-            ->assertSee('PRESENÇA DIGITAL');
+            ->assertSee('VOCÊ DÁ A PISTA.')
+            ->assertSee('O OLHO PROCURA.');
     }
 
     public function test_login_screen_is_in_portuguese(): void
