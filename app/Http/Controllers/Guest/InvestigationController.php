@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreGuestInvestigationRequest;
 use App\Models\Investigation;
 use App\Models\InvestigationRun;
+use App\Payments\PagBank\PagBankException;
+use App\Payments\PaymentSettings;
+use App\Payments\PaymentUnavailableException;
 use App\Services\GuestInvestigationService;
 use App\Services\PaymentService;
 use App\Services\ReportManifestBuilder;
@@ -35,10 +38,18 @@ class InvestigationController extends Controller
     }
 
     /**
-     * Cria a investigação avulsa (sem executar) e o pedido PIX correspondente.
+     * Cria a investigação avulsa (sem executar) e o pedido correspondente.
      */
     public function store(StoreGuestInvestigationRequest $request): RedirectResponse
     {
+        // Sem provedor pronto não há cobrança: não criamos a investigação (nem o
+        // token) para não deixar um pedido órfão sem forma de pagamento.
+        if (! $this->payments->available()) {
+            return back()->withInput()->withErrors([
+                'payment' => __('Pagamentos estão temporariamente indisponíveis. Tente novamente mais tarde.'),
+            ]);
+        }
+
         try {
             $guest = $this->guests->start(
                 $request->only(['name', 'username', 'email', 'phone', 'city', 'state']),
@@ -47,7 +58,18 @@ class InvestigationController extends Controller
             return back()->withInput()->withErrors(['username' => $e->getMessage()]);
         }
 
-        $this->payments->checkoutGuest($guest['investigation'], $guest['package']);
+        try {
+            $this->payments->checkoutGuest($guest['investigation'], $guest['package']);
+        } catch (PaymentUnavailableException $exception) {
+            // Configuração mudou entre as duas etapas: mensagem acionável, sem 500.
+            return back()->withInput()->withErrors(['payment' => $exception->getMessage()]);
+        } catch (PagBankException) {
+            // Provedor recusou a cobrança: o motivo real (campo do `400`) fica no
+            // log e no painel do administrador; o visitante recebe o que fazer.
+            return back()->withInput()->withErrors([
+                'payment' => __('Não foi possível iniciar o pagamento agora. O motivo foi registrado para o administrador — tente novamente em alguns minutos.'),
+            ]);
+        }
 
         return redirect()->route('guest.investigations.show', ['token' => $guest['token']]);
     }
@@ -61,12 +83,15 @@ class InvestigationController extends Controller
 
         $investigation->load(['currentRun.sourceRuns.sourceDefinition', 'currentRun.report']);
 
+        $payment = $investigation->guestPayment;
+
         return view('guest.investigations.show', [
             'token' => $token,
             'investigation' => $investigation,
-            'payment' => $investigation->guestPayment,
+            'payment' => $payment,
             'progress' => $this->guests->progress($investigation),
-            'isFake' => config('payments.provider') === 'fake',
+            'isFake' => $payment?->provider === PaymentSettings::PROVIDER_FAKE,
+            'checkoutUrl' => $payment?->checkout_url,
             'statusUrl' => route('guest.investigations.status', ['token' => $token]),
             'reportUrl' => route('guest.investigations.report', ['token' => $token]),
         ]);

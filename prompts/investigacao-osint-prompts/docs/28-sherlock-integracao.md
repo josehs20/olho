@@ -24,7 +24,7 @@ Maigret — nenhuma lógica de execução foi copiada.
 | `ToolRunner` / `ProcessToolRunner` | argv separado, timeout, ambiente controlado, saída limitada |
 | `ToolWorkspace` | diretório isolado (0700) + descoberta de relatório + limpeza no `finally` |
 | `ToolVersionDetector` | `<binário> --version` com padrão de versão por ferramenta |
-| `ToolOutput::publicWarnings()` | avisos públicos (`[!] ...`) sem detalhes internos |
+| `ToolOutput::publicWarnings()` | avisos públicos (`[!] ...`) sem detalhes internos, traduzidos para português (`ToolWarningsTranslator`) |
 
 O `SherlockAdapter` só define o que é específico: argumentos da CLI, validação
 de entrada, leitura do CSV e conversão para o contrato comum.

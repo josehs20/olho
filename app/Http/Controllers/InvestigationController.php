@@ -8,6 +8,7 @@ use App\Models\Investigation;
 use App\Models\SourceDefinition;
 use App\Services\InvestigationService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -68,7 +69,27 @@ class InvestigationController extends Controller
             'runs.report',
         ]);
 
-        return view('investigations.show', compact('investigation'));
+        return view('investigations.show', [
+            'investigation' => $investigation,
+            'progress' => $this->service->progress($investigation),
+            'statusUrl' => route('investigations.status', $investigation),
+        ]);
+    }
+
+    /**
+     * Estado observável para o polling da página de resultados (JSON leve, sem
+     * dados sensíveis). Mesma autorização do `show` — o dono (ou admin) acompanha
+     * o próprio processamento sem precisar recarregar a página.
+     */
+    public function status(Request $request, Investigation $investigation): JsonResponse
+    {
+        abort_if($investigation->isGuest() && ! $request->user()->is_admin, 404);
+
+        $this->authorize('view', $investigation);
+
+        return response()->json([
+            'progress' => $this->service->progress($investigation),
+        ]);
     }
 
     /**

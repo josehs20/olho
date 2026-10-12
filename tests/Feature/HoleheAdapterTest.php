@@ -82,14 +82,38 @@ class HoleheAdapterTest extends TestCase
      */
     private function withCsv(int $exitCode = 1): void
     {
-        $this->runner->onRun = function (ToolCommand $command) use ($exitCode): ToolResult {
+        $this->withReport($this->fixture(), $exitCode);
+    }
+
+    /**
+     * Relatório sintético: `$blocked` sites que a ferramenta não conseguiu
+     * verificar (`rateLimit = True`) e `$verified` sites verificados sem
+     * cadastro (`exists = False`).
+     */
+    private function syntheticCsv(int $blocked, int $verified): string
+    {
+        $csv = "name,domain,method,frequent_rate_limit,rateLimit,exists,emailrecovery,phoneNumber,others\n";
+
+        foreach (['bloqueado' => $blocked, 'verificado' => $verified] as $kind => $count) {
+            for ($i = 0; $i < $count; $i++) {
+                $rateLimited = $kind === 'bloqueado' ? 'True' : 'False';
+                $csv .= "{$kind}{$i},{$kind}{$i}.com,register,False,{$rateLimited},False,,,\n";
+            }
+        }
+
+        return $csv;
+    }
+
+    private function withReport(string $csv, int $exitCode = 1): void
+    {
+        $this->runner->onRun = function (ToolCommand $command) use ($csv, $exitCode): ToolResult {
             if ($this->isVersionProbe($command)) {
                 return new ToolResult(exitCode: 0, stdout: "holehe v1.61\n", stderr: '', durationMs: 5);
             }
 
-            file_put_contents($command->workingDirectory.'/holehe_1234_alvo_results.csv', $this->fixture());
+            file_put_contents($command->workingDirectory.'/holehe_1234_alvo_results.csv', $csv);
 
-            return new ToolResult(exitCode: $exitCode, stdout: '', stderr: "All results have been exported\n", durationMs: 1200);
+            return new ToolResult(exitCode: $exitCode, stdout: '', stderr: '', durationMs: 1200);
         };
     }
 
@@ -114,6 +138,7 @@ class HoleheAdapterTest extends TestCase
         $this->assertSame('holehe', $outcome->metadata['tool']);
         $this->assertSame('1.61', $outcome->metadata['tool_version']);
         $this->assertSame(2, $outcome->metadata['accounts_found']);
+        $this->assertSame(7, $outcome->metadata['sites_checked']);
         $this->assertFalse($outcome->metadata['password_recovery']);
         $this->assertStringContainsString('Não prova que uma pessoa controla aquela conta', $outcome->metadata['disclaimer']);
         $this->assertSame(1, $outcome->metadata['exit_code']);
@@ -158,6 +183,37 @@ class HoleheAdapterTest extends TestCase
 
         $this->assertTrue($outcome->isEmpty());
         $this->assertSame(0, $outcome->metadata['accounts_found']);
+    }
+
+    /**
+     * Cenário real medido em 02/10/2026 (run #127): o bug do `--timeout` do
+     * Holehe 1.61 fazia 116 de 117 sites falharem e a ferramenta devolvia
+     * "nenhum cadastro" para um e-mail que existe. Esse relatório **não** é um
+     * resultado vazio: é uma consulta que não foi concluída.
+     */
+    public function test_report_with_massive_failure_is_mapped_to_unavailable(): void
+    {
+        $this->withReport($this->syntheticCsv(blocked: 116, verified: 1));
+
+        $this->expectException(SourceUnavailableException::class);
+
+        $this->adapter->execute($this->context());
+    }
+
+    /**
+     * O outro lado da rede de segurança: bloqueio alto (a maioria dos serviços
+     * limita consultas anônimas) com resultados vazios continua sendo um
+     * resultado legítimo — sem virar erro.
+     */
+    public function test_report_with_high_but_not_total_blockage_is_a_valid_empty_result(): void
+    {
+        $this->withReport($this->syntheticCsv(blocked: 74, verified: 43));
+
+        $outcome = $this->adapter->execute($this->context());
+
+        $this->assertTrue($outcome->isEmpty());
+        $this->assertSame(117, $outcome->metadata['sites_checked']);
+        $this->assertSame(74, $outcome->metadata['sites_unavailable']);
     }
 
     public function test_missing_report_is_mapped_to_unavailable(): void

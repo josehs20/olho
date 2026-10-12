@@ -10,6 +10,9 @@ use Illuminate\Foundation\Http\FormRequest;
  * O visitante informa apenas os dados públicos necessários; a escolha de
  * módulos não existe aqui (a plataforma usa todos os aplicáveis e o preço é
  * fixo), por isso não há campo `modules`.
+ *
+ * Nenhum dado do pagador é pedido: a cobrança é um checkout hospedado e quem
+ * coleta nome, CPF/CNPJ e e-mail é a página do provedor.
  */
 class StoreGuestInvestigationRequest extends FormRequest
 {
@@ -18,6 +21,9 @@ class StoreGuestInvestigationRequest extends FormRequest
         return true;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function rules(): array
     {
         return [

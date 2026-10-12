@@ -72,7 +72,7 @@ class ReferenceDataSeederTest extends TestCase
         $this->seed(SourceDefinitionSeeder::class);
         $this->seed(CreditPackageSeeder::class);
 
-        $this->assertSame(7, SourceDefinition::query()->count());
+        $this->assertSame(count(app(SourceRegistry::class)->all()), SourceDefinition::query()->count());
         $this->assertSame(3, CreditPackage::query()->where('kind', CreditPackage::KIND_CREDITS)->count());
         $this->assertSame(1, CreditPackage::query()->where('kind', CreditPackage::KIND_GUEST_INVESTIGATION)->count());
 

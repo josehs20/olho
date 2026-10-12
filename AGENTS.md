@@ -34,9 +34,14 @@ App em `http://localhost:8080`. Healthcheck em `/up`.
 ## Qualidade
 
 ```bash
-docker compose exec app php artisan test
-docker compose exec app ./vendor/bin/pint --test
+docker compose exec app php artisan test          # validação final / sob solicitação
+docker compose exec app ./vendor/bin/pint --test  # validação final / sob solicitação
 ```
+
+Fluxo de desenvolvimento (etapa 46): implementar → **verificações rápidas** →
+entregar para **validação manual**. A suíte completa e o Pint são executados na
+validação final ou quando o usuário pedir explicitamente — não a cada prompt.
+Detalhes em `.cursor/rules/05-fluxo-desenvolvimento-rapido.mdc`.
 
 ## Regras inegociáveis
 

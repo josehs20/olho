@@ -14,20 +14,20 @@
     <div>
     <label for="title" class="block text-sm font-medium text-mist-300">{{ __('Título (opcional)') }}</label>
     <input id="title" name="title" type="text" value="{{ old('title') }}"
-     class="mt-1 block w-full rounded-md border-line focus:border-signal-400 focus:ring-signal-400 sm:text-sm">
+     class="field mt-1">
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
     <div>
      <label for="name" class="block text-sm font-medium text-mist-300">{{ __('Nome') }}</label>
      <input id="name" name="name" type="text" value="{{ old('name') }}"
-      class="mt-1 block w-full rounded-md border-line focus:border-signal-400 focus:ring-signal-400 sm:text-sm">
+      class="field mt-1">
     </div>
 
     <div>
      <label for="username" class="block text-sm font-medium text-mist-300">{{ __('Username') }}</label>
      <input id="username" name="username" type="text" value="{{ old('username') }}"
-      class="mt-1 block w-full rounded-md border-line focus:border-signal-400 focus:ring-signal-400 sm:text-sm">
+      class="field mt-1">
      @error('username')
       <p class="mt-1 text-sm text-rose-300">{{ $message }}</p>
      @enderror
@@ -36,25 +36,25 @@
     <div>
      <label for="email" class="block text-sm font-medium text-mist-300">{{ __('E-mail') }}</label>
      <input id="email" name="email" type="email" value="{{ old('email') }}"
-      class="mt-1 block w-full rounded-md border-line focus:border-signal-400 focus:ring-signal-400 sm:text-sm">
+      class="field mt-1">
     </div>
 
     <div>
      <label for="phone" class="block text-sm font-medium text-mist-300">{{ __('Telefone') }}</label>
      <input id="phone" name="phone" type="text" value="{{ old('phone') }}"
-      class="mt-1 block w-full rounded-md border-line focus:border-signal-400 focus:ring-signal-400 sm:text-sm">
+      class="field mt-1">
     </div>
 
     <div>
      <label for="city" class="block text-sm font-medium text-mist-300">{{ __('Cidade') }}</label>
      <input id="city" name="city" type="text" value="{{ old('city') }}"
-      class="mt-1 block w-full rounded-md border-line focus:border-signal-400 focus:ring-signal-400 sm:text-sm">
+      class="field mt-1">
     </div>
 
     <div>
      <label for="state" class="block text-sm font-medium text-mist-300">{{ __('UF') }}</label>
      <input id="state" name="state" type="text" maxlength="2" value="{{ old('state') }}"
-      class="mt-1 block w-full rounded-md border-line focus:border-signal-400 focus:ring-signal-400 sm:text-sm">
+      class="field mt-1">
     </div>
     </div>
 

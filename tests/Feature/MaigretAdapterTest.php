@@ -102,7 +102,9 @@ class MaigretAdapterTest extends TestCase
         $this->assertSame('0.6.6', $outcome->metadata['tool_version']);
         $this->assertSame(2, $outcome->metadata['accounts_found']);
         $this->assertSame(30, $outcome->metadata['sites_checked']);
-        $this->assertSame(['Too many errors of type "Bot protection" (10.71%).'], $outcome->warnings);
+        // O aviso público sai em português (o painel e o relatório exibem esta
+        // string); a recomendação da ferramenta acompanha a mesma mensagem.
+        $this->assertSame(['Muitos erros do tipo "Proteção anti-bot" (10,71%).'], $outcome->warnings);
 
         $command = $this->runner->commands[0];
 

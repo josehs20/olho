@@ -11,17 +11,17 @@
    @csrf
    <div>
     <label class="block text-sm font-medium text-mist-300">{{ __('Nome') }}</label>
-    <input type="text" name="name" value="{{ old('name') }}" class="mt-1 block w-full rounded-md border-line sm:text-sm">
+    <input type="text" name="name" value="{{ old('name') }}" class="field mt-1">
     @error('name') <p class="mt-1 text-sm text-rose-300">{{ $message }}</p> @enderror
    </div>
    <div>
     <label class="block text-sm font-medium text-mist-300">{{ __('Créditos') }}</label>
-    <input type="number" name="credits" value="{{ old('credits') }}" class="mt-1 block w-full rounded-md border-line sm:text-sm">
+    <input type="number" name="credits" value="{{ old('credits') }}" class="field mt-1">
     @error('credits') <p class="mt-1 text-sm text-rose-300">{{ $message }}</p> @enderror
    </div>
    <div>
     <label class="block text-sm font-medium text-mist-300">{{ __('Preço em centavos') }}</label>
-    <input type="number" name="price_cents" value="{{ old('price_cents') }}" class="mt-1 block w-full rounded-md border-line sm:text-sm">
+    <input type="number" name="price_cents" value="{{ old('price_cents') }}" class="field mt-1">
     @error('price_cents') <p class="mt-1 text-sm text-rose-300">{{ $message }}</p> @enderror
    </div>
    <label class="flex items-center gap-2 text-sm text-mist-300">

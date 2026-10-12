@@ -13,7 +13,7 @@
 
   <form method="GET" class="mb-4">
    <input type="text" name="q" value="{{ request('q') }}" placeholder="{{ __('Buscar nome ou e-mail') }}"
-    class="rounded-md border-line focus:border-signal-400 focus:ring-signal-400 sm:text-sm">
+    class="field w-64">
    <button type="submit" class="ml-2 rounded-md bg-ink-700 px-3 py-1.5 text-sm text-white">{{ __('Buscar') }}</button>
   </form>
 
@@ -37,9 +37,9 @@
       <form method="POST" action="{{ route('admin.users.adjust-credits', $user) }}" class="flex items-center gap-2">
        @csrf
        <input type="number" name="amount" required placeholder="{{ __('Valor') }}"
-        class="w-24 rounded-md border-line sm:text-sm">
+        class="field w-24">
        <input type="text" name="reason" required placeholder="{{ __('Motivo') }}"
-        class="rounded-md border-line sm:text-sm">
+        class="field flex-1 min-w-0">
        <button type="submit" class="rounded-md bg-ink-700 px-3 py-1.5 text-white">{{ __('Ajustar') }}</button>
       </form>
       </td>

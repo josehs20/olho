@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Sources\Runners\ToolWarningsTranslator;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -65,6 +66,31 @@ class SourceRun extends Model
     public function sourceResults(): HasMany
     {
         return $this->hasMany(SourceResult::class);
+    }
+
+    /**
+     * Avisos públicos da execução prontos para exibição (prompt 31).
+     *
+     * O texto gravado em `metrics.warnings` já é traduzido no momento da
+     * execução; registros anteriores a isso são convertidos aqui, para que painel
+     * e relatório nunca exibam o aviso bruto da ferramenta em inglês.
+     *
+     * @return array<int, string>
+     */
+    public function publicWarnings(): array
+    {
+        $warnings = $this->metrics['warnings'] ?? [];
+
+        if (! is_array($warnings)) {
+            return [];
+        }
+
+        $translated = array_map(
+            fn (string $warning) => ToolWarningsTranslator::translate($warning),
+            array_values(array_filter($warnings, 'is_string')),
+        );
+
+        return array_values(array_unique(array_filter($translated)));
     }
 
     /**

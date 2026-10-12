@@ -12,6 +12,14 @@ x-app: &app
   networks:
     - osint
   restart: unless-stopped
+  # Proxy de egresso do Instagram (instagrapi). O Instagram limita IPs de
+  # datacenter (HTTP 429 / login_required) e vincula a sessão ao IP de origem;
+  # sem um IP residencial/limpo a sessão do burner é recusada mesmo funcionando
+  # no navegador. Defina INSTAGRAM_PROXY no `.env` (ex.:
+  # `http://usuario:senha@host:porta` ou `socks5://...`). Vazio = sem proxy.
+  # O valor é secreto (credenciais na URL) e chega ao script só pelo ambiente.
+  environment:
+    INSTAGRAM_PROXY: ${INSTAGRAM_PROXY:-}
 
 services:
   app:
@@ -43,7 +51,11 @@ services:
 
   worker:
     <<: *app
-    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=90
+    # `--max-time`/`--max-jobs`: reciclam o processo periodicamente. Um worker de vida
+    # longa pode ficar preso em estado pausado (SIGUSR2) ou com configuração lida no
+    # boot já defasada, deixando a fila parada **sem qualquer log**; a reciclagem
+    # devolve o consumo sozinha e faz o processo reler `.env`/código sem intervenção.
+    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=90 --max-time=3600 --max-jobs=1000
     depends_on:
       app:
         condition: service_started

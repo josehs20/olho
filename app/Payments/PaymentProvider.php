@@ -2,15 +2,17 @@
 
 namespace App\Payments;
 
-use App\Models\Payment;
-
+/**
+ * Contrato mínimo de um provedor de pagamento.
+ *
+ * *Cobrar* é uma capacidade adicional, exposta por `DirectPixProvider` (PIX
+ * copia-e-cola, só o fake) e `CheckoutProvider` (checkout hospedado, PagBank).
+ * O `PaymentService` decide o fluxo por `instanceof`, sem acoplar o domínio a um
+ * provedor específico — e sem que nenhum dado pessoal do comprador circule pelo
+ * OLHO.
+ */
 interface PaymentProvider
 {
-    /**
-     * Cria uma cobrança PIX para o pedido e retorna os dados de pagamento.
-     */
-    public function createCharge(Payment $payment): PixCharge;
-
     /**
      * Consulta o status atual de uma cobrança no provedor.
      */
@@ -18,6 +20,12 @@ interface PaymentProvider
 
     /**
      * Valida um payload de webhook e retorna o evento verificado (ou null se inválido).
+     *
+     * `$rawBody` é o corpo **bruto** da requisição — necessário para validar a
+     * assinatura (ex.: PagBank `x-payload-signature`) sem re-serializar o JSON.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $headers
      */
-    public function validateWebhook(array $payload, array $headers): ?VerifiedPaymentEvent;
+    public function validateWebhook(array $payload, array $headers, ?string $rawBody = null): ?VerifiedPaymentEvent;
 }

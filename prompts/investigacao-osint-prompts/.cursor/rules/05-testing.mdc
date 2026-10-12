@@ -7,12 +7,15 @@ alwaysApply: true
 
 Toda funcionalidade nova relevante deve possuir testes.
 
-Após alterações:
+Após alterações (modo de desenvolvimento rápido, etapa 46):
 
-1. rodar testes focados;
-2. rodar suíte relacionada;
-3. rodar lint/formatador;
-4. corrigir regressões introduzidas;
+1. verificar rapidamente (sintaxe, imports, rotas, configuração);
+2. rodar teste focado somente se for rápido e diretamente relacionado;
+3. corrigir erros óbvios introduzidos pela alteração;
+4. entregar para validação manual;
 5. registrar bloqueios reais.
+
+A suíte completa e o lint/formatador são concentrados na validação final ou
+quando o usuário solicitar explicitamente. Não remover testes nem desativar PHPUnit.
 
 Módulos externos devem usar mocks determinísticos no MVP.

@@ -1,0 +1,67 @@
+---
+description: Modo de desenvolvimento rápido (etapa 46) — validação manual em vez de suíte completa por etapa
+alwaysApply: true
+---
+# Modo de desenvolvimento rápido
+
+Fluxo padrão a partir da etapa 46: priorizar **implementação** e entregar para
+**validação manual** do usuário. A validação funcional completa (PHPUnit, E2E,
+integrações reais, auditoria) é concentrada em uma **etapa final dedicada**.
+
+## Ordem de cada prompt
+
+```text
+1. AUDITAR
+2. ENTENDER A IMPLEMENTAÇÃO EXISTENTE
+3. IMPLEMENTAR (menor alteração necessária; reutilizar o que já existe)
+4. VERIFICAR RAPIDAMENTE
+5. CORRIGIR ERROS ÓBVIOS RELACIONADOS
+6. PARAR
+7. ENTREGAR PARA TESTE MANUAL
+```
+
+## Verificações rápidas (fazer)
+
+- sintaxe PHP; imports; classes/namespaces inexistentes; referências quebradas;
+- rotas adicionadas/alteradas; migrations; configuração básica conectada;
+- views usam as variáveis esperadas; nenhum segredo no código.
+
+## NÃO executar automaticamente
+
+- suíte completa de PHPUnit; todos os Feature/Unit Tests; E2E completo;
+- auditorias completas; integrações externas reais (PagBank, webhooks, Maigret,
+  Sherlock, WhatsMyName, Holehe); investigações reais; workers por tempo
+  prolongado; testes extensos de Redis/adapters OSINT;
+- ciclos repetitivos de teste → correção → teste completo.
+
+## Testes existentes
+
+**Não remover testes, não desativar PHPUnit, não remover E2E nem auditorias** —
+apenas não executá-los automaticamente a cada etapa.
+
+## Testes antigos que falham
+
+Se um teste antigo falhar por motivo **não** relacionado à alteração atual:
+identificar a causa, verificar se a mudança atual a provocou e, se não,
+**não alterar código antigo só para o teste passar**; registrar no relatório e
+seguir a implementação.
+
+## Integrações externas
+
+Durante a implementação, verificar apenas: configuração, classes, contratos,
+requests, services, adapters, rotas, controllers, validações, tratamento de
+erros, estrutura de webhook e persistência. A validação real fica para a etapa
+dedicada.
+
+## Quando executar os testes completos
+
+Somente quando o usuário pedir explicitamente ("Execute os testes completos" /
+"Faça a auditoria final"): PHPUnit completo, Feature, Unit, E2E, integrações,
+Pint e verificações de segurança.
+
+## Relatório final obrigatório
+
+Informar: arquivos alterados; o que foi implementado; verificações rápidas
+feitas; que os testes completos **NÃO** foram executados; e uma lista objetiva
+de **TESTAR MANUALMENTE**. Nunca afirmar que testes passaram se não foram
+executados, nem que uma integração externa funciona sem validação real.

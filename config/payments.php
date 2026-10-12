@@ -3,16 +3,62 @@
 return [
     /*
     |--------------------------------------------------------------------------
-    | Provedor de pagamento ativo.
+    | Provedor de pagamento ativo (fallback de ambiente)
     |--------------------------------------------------------------------------
-    | MVP: 'fake'. Gateways reais serão adicionados depois sem mudar o domínio.
+    | O valor efetivo é lido das configurações administrativas (prompt 45) e cai
+    | para este default quando nada foi salvo no painel. `fake` mantém o fluxo
+    | de desenvolvimento/testes; `pagbank` usa a integração real.
     */
     'provider' => env('PAYMENT_PROVIDER', 'fake'),
 
     /*
     |--------------------------------------------------------------------------
+    | Defaults das configurações administrativas
+    |--------------------------------------------------------------------------
+    | Usados quando a respectiva chave ainda não foi salva em `settings`.
+    */
+    'defaults' => [
+        'enabled' => (bool) env('PAYMENT_ENABLED', true),
+        'environment' => env('PAGBANK_ENVIRONMENT', 'sandbox'),
+        'method_pix' => (bool) env('PAYMENT_METHOD_PIX', true),
+        'method_debit' => (bool) env('PAYMENT_METHOD_DEBIT', true),
+        'method_credit' => (bool) env('PAYMENT_METHOD_CREDIT', true),
+        'pix_expiration_minutes' => (int) env('PIX_EXPIRATION_MINUTES', 30),
+        'credit_max_installments' => (int) env('PAYMENT_MAX_INSTALLMENTS', 6),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Integração PagBank (Checkout / Link de Pagamento)
+    |--------------------------------------------------------------------------
+    | Hosts oficiais (doc "Ambientes disponíveis"): Sandbox
+    | `https://sandbox.api.pagseguro.com` e Produção `https://api.pagseguro.com`.
+    | Nenhuma credencial vive aqui — o token fica cifrado em `settings`.
+    */
+    'pagbank' => [
+        'environments' => [
+            'sandbox' => [
+                'api' => env('PAGBANK_SANDBOX_API', 'https://sandbox.api.pagseguro.com'),
+            ],
+            'production' => [
+                'api' => env('PAGBANK_PRODUCTION_API', 'https://api.pagseguro.com'),
+            ],
+        ],
+        'timeout' => (int) env('PAGBANK_TIMEOUT', 15),
+        // Faixa aceita para a quantidade máxima de parcelas no crédito. A doc do
+        // PagBank limita por conta; a UI nunca aceita valor fora desta faixa.
+        'installments' => [
+            'min' => 1,
+            'max' => 12,
+            'allowed' => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Dados do recebedor PIX (somente placeholders no repositório).
     |--------------------------------------------------------------------------
+    | Usados apenas pelo FakePixProvider (desenvolvimento/testes).
     */
     'pix' => [
         'key_type' => env('PIX_KEY_TYPE', 'cnpj'),

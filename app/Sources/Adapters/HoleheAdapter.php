@@ -46,7 +46,19 @@ use SplFileInfo;
 final class HoleheAdapter implements InvestigationSource
 {
     /** Versão do adapter (participa da chave de cache). */
-    private const ADAPTER_VERSION = 'v1';
+    private const ADAPTER_VERSION = 'v2';
+
+    /**
+     * Mínimo de sites no relatório para o diagnóstico de falha em massa valer
+     * (relatórios minúsculos não são estatisticamente conclusivos).
+     */
+    private const MIN_CHECKS_FOR_DIAGNOSIS = 20;
+
+    /**
+     * Fração de sites que não puderam ser verificados a partir da qual a
+     * execução é considerada não concluída, não "sem correspondência".
+     */
+    private const UNVERIFIED_RATIO_THRESHOLD = 0.95;
 
     /** E-mails aceitos (sem espaços, sem iniciar com `-`). */
     private const EMAIL_PATTERN = '/^[A-Za-z0-9!#$%&\'*+\/=?^_`{|}~.-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/';
@@ -99,7 +111,12 @@ final class HoleheAdapter implements InvestigationSource
 
         try {
             $result = $this->runner->run($this->command($email, $workdir, $options));
-            $findings = $this->parser->parseCsv($this->readReport($workdir, $result, $options), $email);
+            $csv = $this->readReport($workdir, $result, $options);
+            $report = $this->parser->summarize($csv);
+
+            $this->assertReportIsUsable($report);
+
+            $findings = $this->parser->parseCsv($csv, $email);
 
             return new SourceOutcome(
                 findings: $findings,
@@ -115,6 +132,11 @@ final class HoleheAdapter implements InvestigationSource
                         ['--help'],
                     ),
                     'accounts_found' => count($findings),
+                    // Panorama da execução: sem esses números, "0 resultados" e
+                    // "a ferramenta não conseguiu verificar" ficam idênticos no
+                    // painel (foi assim que o bug do `--timeout` passou).
+                    'sites_checked' => $report['checked'],
+                    'sites_unavailable' => $report['unavailable'],
                     'password_recovery' => false,
                     'disclaimer' => self::DISCLAIMER,
                     // O Holehe v1.61 retorna 1 mesmo em sucesso: o relatório
@@ -125,6 +147,37 @@ final class HoleheAdapter implements InvestigationSource
         } finally {
             $this->workspace->cleanup($workdir);
         }
+    }
+
+    /**
+     * Rede de segurança contra falha silenciosa da ferramenta.
+     *
+     * O CSV marca `rateLimit = True` quando a verificação do site não
+     * concluiu (bloqueio/limite ou exceção interna do módulo). Em 02/10/2026 a
+     * execução com `--timeout` — bug do `argparse` do Holehe 1.61, corrigido na
+     * imagem (`docker/php/Dockerfile`) — falhou em 116 dos 117 sites e devolveu
+     * "nenhum cadastro" para um e-mail que existe, indistinguível de um e-mail
+     * realmente sem cadastros. Quando **quase todos** os sites falham e nenhum
+     * cadastro apareceu, o desfecho honesto é `unavailable` (a consulta não foi
+     * concluída), não uma lista vazia de resultados.
+     *
+     * @param  array{checked: int, found: int, unavailable: int}  $report
+     */
+    private function assertReportIsUsable(array $report): void
+    {
+        if ($report['found'] > 0 || $report['checked'] < self::MIN_CHECKS_FOR_DIAGNOSIS) {
+            return;
+        }
+
+        if (($report['unavailable'] / $report['checked']) < self::UNVERIFIED_RATIO_THRESHOLD) {
+            return;
+        }
+
+        throw new SourceUnavailableException(sprintf(
+            'O Holehe não conseguiu verificar os serviços de cadastro (%d de %d bloqueados ou com erro).',
+            $report['unavailable'],
+            $report['checked'],
+        ));
     }
 
     public function normalize(array $raw): SourceResult

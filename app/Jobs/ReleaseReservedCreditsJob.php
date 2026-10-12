@@ -78,7 +78,9 @@ class ReleaseReservedCreditsJob implements ShouldQueue
      * quando a consulta falhou ou estourou o tempo limite (a consulta aconteceu).
      * Só é estornado o que **nunca foi consultado**: módulo não aplicável
      * (`skipped`), reserva sem execução (`pending`/`running`, incluindo worker
-     * interrompido) ou módulo que não chegou a ser criado no run.
+     * interrompido), módulo que não chegou a ser criado no run — e a sessão de
+     * serviço ausente/inválida/desafio do Instagram (prompt 48: o alvo nunca foi
+     * consultado, embora o run registre `attempts` da tentativa interrompida).
      */
     private function isChargeable(InvestigationRun $run, CreditReservation $reservation): bool
     {
@@ -89,7 +91,15 @@ class ReleaseReservedCreditsJob implements ShouldQueue
 
         $sourceRun = $run->sourceRuns->firstWhere('source', $reservation->source);
 
-        return $sourceRun !== null && (int) $sourceRun->attempts > 0;
+        if ($sourceRun === null) {
+            return false;
+        }
+
+        if (in_array((string) $sourceRun->error_code, ['session_invalid', 'challenge_required'], true)) {
+            return false;
+        }
+
+        return (int) $sourceRun->attempts > 0;
     }
 
     /**

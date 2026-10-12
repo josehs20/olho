@@ -36,6 +36,10 @@
         <env name="SHERLOCK_DRIVER" value="mock"/>
         <env name="WHATSMYNAME_DRIVER" value="mock"/>
         <env name="HOLEHE_DRIVER" value="mock"/>
+        <env name="INSTAGRAM_DRIVER" value="mock"/>
+        <!-- `auto` preserva a decisão por fonte (drivers `mock` acima): a suíte
+             não muda com o parâmetro central OSINT_MODE. -->
+        <env name="OSINT_MODE" value="auto"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

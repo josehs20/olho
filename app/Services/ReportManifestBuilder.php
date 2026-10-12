@@ -136,7 +136,7 @@ class ReportManifestBuilder
             'finished_at' => $sourceRun->finished_at?->toISOString(),
             'error_code' => $sourceRun->error_code,
             'error_message_public' => $sourceRun->error_message_public,
-            'warnings' => $sourceRun->metrics['warnings'] ?? [],
+            'warnings' => $sourceRun->publicWarnings(),
         ];
     }
 
@@ -207,7 +207,7 @@ class ReportManifestBuilder
                     .($sourceRun->error_message_public ?? $sourceRun->error_code ?? 'sem detalhe público').'.';
             }
 
-            foreach ($sourceRun->metrics['warnings'] ?? [] as $warning) {
+            foreach ($sourceRun->publicWarnings() as $warning) {
                 $limitations[] = (string) $warning;
             }
         }

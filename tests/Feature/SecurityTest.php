@@ -21,7 +21,7 @@ class SecurityTest extends TestCase
     public function test_user_cannot_mass_assign_admin(): void
     {
         $this->post('/register', [
-            'name' => 'Test',
+            'name' => 'Test User',
             'email' => 'admin-inject@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',

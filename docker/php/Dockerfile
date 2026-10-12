@@ -47,15 +47,42 @@ RUN apk del $PHPIZE_DEPS
 ARG MAIGRET_VERSION=0.6.6
 ARG SHERLOCK_VERSION=0.16.2
 ARG HOLEHE_VERSION=1.61
+# instagrapi 2.x (prompt 48): API privada do Instagram usada pela etapa de
+# enriquecimento de perfil. Requer Python 3.10+ (a imagem já traz 3.12) e
+# curl_cffi, incluído na instalação padrão.
+ARG INSTAGRAPI_VERSION=2.7.4
 
 RUN apk add --no-cache python3 py3-pip \
     && pip install --break-system-packages --no-cache-dir \
         "maigret==${MAIGRET_VERSION}" \
         "sherlock-project==${SHERLOCK_VERSION}" \
         "holehe==${HOLEHE_VERSION}" \
+        "instagrapi==${INSTAGRAPI_VERSION}" \
     && maigret --version > /dev/null \
     && sherlock --version > /dev/null \
-    && pip show holehe > /dev/null
+    && pip show holehe > /dev/null \
+    && python3 -c "import instagrapi; from importlib.metadata import version; print(version('instagrapi'))" > /dev/null
+
+# -----------------------------------------------------------------------------
+# Correção do bug do `-T/--timeout` do Holehe 1.61 (upstream).
+#
+# O `argparse` do Holehe declara `-T/--timeout` **sem** `type=int`, então a
+# string (`"10"`) chega ao `httpx.AsyncClient(timeout=...)` e o backend
+# trio/anyio estoura `TypeError: '<' not supported between instances of 'str'
+# and 'int'` nas requisições que passam pela validação de timeout (redireciona-
+# mento/DNS). O resultado é uma falha silenciosa: os módulos que estouram viram
+# `rateLimit = True` no CSV e a ferramenta devolve "nenhum cadastro" mesmo para
+# e-mails que existem. Medido no container em 02/10/2026 com e-mail real:
+#
+#   holehe <email> ... --csv --timeout 10  -> 0 encontrados, 116/117 bloqueados
+#   holehe <email> ... --csv               -> 3 encontrados, 74/117 bloqueados
+#
+# O patch aplica o `type=int` que o upstream pretendia; o `grep` derruba o build
+# se o padrão mudar (versão nova), em vez de deixar o bug voltar silenciosamente.
+# -----------------------------------------------------------------------------
+RUN HOLEHE_CORE="$(python3 -c 'import holehe.core as core; print(core.__file__)')" \
+    && sed -i 's|parser\.add_argument("-T","--timeout", default=10|parser.add_argument("-T","--timeout", type=int, default=10|' "$HOLEHE_CORE" \
+    && grep -q -- '"--timeout", type=int' "$HOLEHE_CORE"
 
 # -----------------------------------------------------------------------------
 # WhatsMyName — dataset público de verificação de username.

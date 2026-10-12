@@ -126,4 +126,36 @@ return [
         'workdir' => env('HOLEHE_WORKDIR', storage_path('app/holehe')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Instagram via instagrapi (prompt 48, etapa 2 da pipeline)
+    |--------------------------------------------------------------------------
+    |
+    | Enriquecimento de perfil: recebe o username já confirmado pelas fontes da
+    | etapa 1 e devolve metadados públicos + avatar (evidência visual). O cliente
+    | Python roda como **processo separado** e o `sessionid` da conta de serviço
+    | (burner) é configurado no painel admin (`/admin/settings/integrations`) —
+    | chega ao script pelo ambiente do processo, nunca pela argv. As variáveis
+    | abaixo são apenas *defaults*; o cookie NUNCA deve ser colocado no `.env`.
+    |
+    */
+    'instagram' => [
+        'driver' => env('INSTAGRAM_DRIVER', 'process'),
+        'binary' => env('INSTAGRAM_BINARY', 'python3'),
+        'request_timeout' => (int) env('INSTAGRAM_REQUEST_TIMEOUT', 15),
+        'process_timeout' => (int) env('INSTAGRAM_PROCESS_TIMEOUT', 45),
+        'max_output_bytes' => (int) env('INSTAGRAM_MAX_OUTPUT_BYTES', 5_000_000),
+        'workdir' => env('INSTAGRAM_WORKDIR', storage_path('app/instagram')),
+        // Fallback de credencial (NUNCA preencher no `.env` real: o cookie é um
+        // segredo e pertence ao banco cifrado). Existe para ambientes descartáveis.
+        'session_id' => env('INSTAGRAM_SESSION_ID'),
+        'ds_user_id' => env('INSTAGRAM_DS_USER_ID'),
+        // Proxy de egresso (HTTP/HTTPS/SOCKS) para a consulta ao Instagram. O
+        // Instagram vincula a sessão ao IP de origem e limita IPs de datacenter
+        // (HTTP 429 / login_required): sem um IP residencial/limpo a sessão válida
+        // do burner é recusada mesmo funcionando no navegador. O valor é um segredo
+        // (credenciais na URL): vai pelo **ambiente** do processo, nunca na argv.
+        'proxy' => env('INSTAGRAM_PROXY'),
+    ],
+
 ];

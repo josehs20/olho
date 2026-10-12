@@ -49,4 +49,7 @@
 
 ## Qualidade
 
-Executar formatador/linter e suite de testes antes de finalizar cada prompt.
+Verificações rápidas (sintaxe, rotas, configuração, estrutura) a cada prompt.
+A suíte completa e o formatador/linter são concentrados na **validação final**
+ou quando o usuário solicitar explicitamente — não a cada etapa
+(modo de desenvolvimento rápido, etapa 46). Não remover testes nem desativar PHPUnit.

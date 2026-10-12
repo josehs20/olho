@@ -601,3 +601,334 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   e `SourceRunPersistenceTest`; suíte **309 passando + 5 ignorados**, Pint PASS
   (259 arquivos); verificação manual HTTP de landing, `/investigacao`, `/login`
   e `/up`.
+
+
+## Etapa 45 — PagBank: dados do pagador e diagnóstico de recusa
+
+- **Sintoma**: em teste real (sandbox) o PIX e o cartão devolviam
+  `PagBank: falha ao criar checkout (HTTP 400). Requisição rejeitada pelo
+  PagBank: revise o token e os métodos habilitados.` — mensagem que mandava
+  revisar o que estava correto (o teste de conexão passava) porque o corpo da
+  resposta era descartado por decisão de privacidade.
+- **Diagnóstico do `400`**: `PagBankException` passa a extrair
+  `error_messages[]` (`error` + `parameter_name`, os enums/caminhos de campo da
+  doc oficial) e a citá-los na mensagem (`O PagBank apontou: invalid_value em
+  customer.tax_id`), sanitizados e **sem ecoar o corpo** (que pode carregar dados
+  do comprador); o texto do `400` deixou de culpar o token. A última falha de
+  cobrança é registrada por `PaymentService` (`payment.pagbank.last_checkout_error`,
+  **depois** do rollback da transação), aparece em `/admin/settings/payments` e é
+  limpa quando uma cobrança é aceita; o provedor registra
+  `payment.pagbank.failed` (com `payment_id`, status e `error`/`parameter_name`) e
+  o comprador recebe uma mensagem acionável em vez de `500`.
+- **Dados do pagador (causa provável da recusa)**: o PagBank identifica quem paga
+  pelo objeto `customer` — `tax_id` é **obrigatório** na API de Pedidos (Criar
+  pedido com QR Code PIX) e o Checkout/Link de Pagamento recebe o mesmo dado.
+  Os dois payloads passam a enviar `customer` (nome + CPF/CNPJ; e-mail só na
+  faixa aceita: 10–60 no Checkout, 10–255 nos Pedidos, ver `PixPayer`).
+  - **Cadastro**: `users.tax_id` (documento **cifrado**, validado pelo dígito
+    verificador via `App\Rules\TaxId`, nome com sobrenome), máscara na interface,
+    campo editável no perfil (em branco preserva o atual) e remoção na exclusão de
+    conta (`AccountDeletionService`) — migration
+    `2026_10_02_000230_add_tax_id_to_users_table`.
+  - **`/credits`**: o modal do PIX abre com os dados do comprador preenchidos;
+    o cartão envia os mesmos dados em campos ocultos e fica bloqueado, com link
+    para o perfil, quando a conta ainda não tem o documento.
+  - **Avulsa**: o formulário público ganha "Seus dados (quem paga)" quando o
+    provedor ativo exige (`payer_name`/`payer_tax_id`/`payer_email`, **nunca
+    persistidos**): sem eles a investigação não é criada, em vez de o provedor
+    recusar a cobrança.
+- **URL de notificação**: `notification_urls`/`payment_notification_urls` só
+  entram no payload quando a `APP_URL` é HTTPS público — em desenvolvimento o
+  PagBank não alcança o endereço local. O painel avisa e a confirmação passa a
+  depender do retorno do comprador (`payments.return`, que reconsulta o provedor).
+- **Especificação**: `docs/41-pagbank-dados-do-pagador.md`.
+- **Testes**: `PagBankProviderTest` (13), `CreditCheckoutTest` (17),
+  `GuestPagBankPaymentTest` (8), `AdminPaymentSettingsTest`, `RegistrationTest`
+  (7); suíte **374 passando + 5 ignorados**, Pint PASS (285 arquivos) e
+  `npm run build` OK.
+
+
+## Etapa 46 — Modo de desenvolvimento rápido e validação manual
+
+- **Diretriz de processo** (sem alteração de código de produto): a partir desta
+  etapa, o fluxo por prompt passa a priorizar **implementação → verificações
+  rápidas → entrega para validação manual**. A validação funcional completa
+  (PHPUnit, Feature/Unit, E2E, integrações reais, auditoria) é concentrada em uma
+  **etapa final dedicada** ou executada quando o usuário pedir explicitamente.
+- **Regra codificada em**: novo `.cursor/rules/05-fluxo-desenvolvimento-rapido.mdc`
+  (alwaysApply) e ajuste de `.cursor/rules/04-testes.mdc`, `AGENTS.md`,
+  `CLAUDE.md`, `docs/17-testes.md` e das regras-espelho do pacote de spec
+  (`.cursor/rules/05-testing.mdc`, `.cursor/rules/08-cline-execution.mdc`).
+- **Não fazer automaticamente**: suíte completa, todos os Feature/Unit, E2E,
+  auditorias, integrações externas reais (PagBank, webhooks, Maigret, Sherlock,
+  WhatsMyName, Holehe), investigações reais e execução prolongada de workers.
+- **Testes antigos que falham por motivo não relacionado**: identificar a causa,
+  não alterar código antigo apenas para "fazer o teste passar" e registrar no
+  relatório final.
+- **Preservação**: nenhum teste foi removido; PHPUnit, E2E e auditorias
+  permanecem intactos — apenas deixam de rodar automaticamente a cada etapa.
+- **Relatório final**: passa a exigir arquivos alterados, o que foi implementado,
+  verificações rápidas feitas, aviso de que os testes completos **não** foram
+  executados e uma lista objetiva de **TESTAR MANUALMENTE**.
+
+
+## Etapa 47 — Checkout PagBank sem dados do pagador (PIX e cartão)
+
+- **Decisão**: o OLHO deixa de pedir nome e CPF/CNPJ para pagar. Pela doc oficial
+  do PagBank, no objeto **Checkout** o `customer` só é obrigatório quando
+  `customer_modifiable = false`; com o valor padrão (`true`) é a **página
+  hospedada** que coleta os dados do comprador. O checkout passa a ser criado com
+  `customer_modifiable: true` e **sem** o objeto `customer`.
+- **Removido do produto**: coluna `users.tax_id` (migration
+  `2026_10_02_000240_drop_tax_id_from_users_table`), `App\Rules\TaxId`,
+  `App\Payments\PixPayer`, `DirectPixProvider::requiresPayerDocument()`,
+  `CheckoutProvider::requiresPayerIdentity()`,
+  `PaymentService::payerIdentityRequired()` e os campos de documento/`payer_*` do
+  cadastro, perfil, modal de PIX e formulário da avulsa.
+- **Fluxo resultante**: cadastro com nome, e-mail e senha; `/credits` (PIX e
+  cartão concluídos na página hospedada do PagBank — o modal de PIX redireciona
+  quando o provedor não emite o código na aplicação; o provedor `fake` mantém o
+  copia e cola) e `/investigacao` (formulário de identificação + botão de
+  pagamento) **sem nenhum campo de pagador**. O CPF/CNPJ é digitado pelo próprio
+  pagador no ambiente do PagBank — o OLHO não pede nem recebe.
+- **Diagnóstico do `400`** (etapa 45) permanece: `error_messages` na mensagem, no
+  log e no painel; o texto do `400` deixou de citar "dados do pagador".
+- **Docs**: `docs/40` (seção "Atualização") e `docs/41` (banner de decisão final +
+  seções "vigente") reconciliados com o código.
+
+## Ajustes pós-etapa 47 — botão de pagamento direto no PagBank (teste manual)
+
+- **Causa raiz do "botão que não faz nada"** (investigação avulsa ficava sem
+  pagamento): o PagBank **valida** as URLs do payload e recusa a cobrança inteira
+  com `400 invalid_value em redirect_url; invalid_value em return_url` quando
+  apontam para `http://localhost:8080` (`APP_URL` local). Nenhum checkout era
+  criado e não havia link para pagar.
+- **Correção**: `PagBankProvider::buildCheckoutPayload()` só envia `redirect_url`
+  e `return_url` quando `PaymentSettings::webhookIsPublic()` é verdadeiro — a mesma
+  regra que já valia para `notification_urls()`; sem endereço público o comprador
+  paga na página do PagBank e a confirmação fica com a reconciliação
+  (`payments.return`/`payments.show`), que consulta a API antes de liberar.
+- **Modal de PIX removido** em `/credits`: o botão virou um `POST` de formulário
+  (`channel=pix|credit_card`) que **redireciona direto** para o checkout hospedado
+  (`redirect()->away($checkout_url)`), sem Alpine nem JSON. `PaymentController::store()`
+  passou a devolver sempre `RedirectResponse`; a falha do provedor volta para a
+  tela com `back()->with('error', ...)`.
+- **PIX do provedor local (`fake`)**: continua abrindo a página do pedido
+  (`payments.show`) com o copia e cola e o acompanhamento — o OLHO não perde a
+  emissão própria quando não há checkout hospedado.
+- **Pagamento em outra aba**: os dois botões de `/credits` passaram a ser
+  formulários com `target="_blank"` (a especificação HTML já implica `noopener`
+  em formulários) — a tela de créditos fica aberta e o comprador volta, recarrega
+  e vê o saldo no painel. O mesmo vale para o botão "PAGAR COM PAGBANK" na página
+  do pedido e na página pública da avulsa, cuja URL é o único acesso do comprador
+  à investigação. A página avisa ("O pagamento abre em outra aba").
+- **Saldo na tela de créditos**: `/credits` passou a exibir o saldo atual
+  (lido da carteira no servidor, nunca somado no navegador) ao lado do aviso —
+  voltar e recarregar já mostra os créditos comprados.
+- **Erro visível**: o aviso de falha do pagamento na avulsa passou a aparecer
+  **acima** do botão "Revisar e pagar" (antes ficava depois dele, fora da dobra —
+  dava a impressão de que o clique não fazia nada).
+- **Painel**: o aviso de URL não pública agora explica que `notification_urls`,
+  `redirect_url` e `return_url` ficam de fora e que a confirmação depende da
+  reconciliação (antes falava só do "retorno do comprador").
+- **Verificação de ponta a ponta**: script temporário (`storage/app/diag-pagbank.php`,
+  removido depois) chamou o checkout real no **sandbox** para conta e avulsa —
+  ambas retornaram `awaiting_payment` com `checkout_url` do PagBank e
+  `lastCheckoutFailure()` limpo. O diagnóstico falso-próximo do fluxo era o
+  `invalid_value` das URLs, não a credencial.
+- **Testes**: `CreditCheckoutTest` (botão PIX via formulário, redirect para o
+  PagBank e para o pedido local, erros por sessão), `PagBankProviderTest`
+  (`redirect_url`/`return_url` só com URL pública HTTPS) e `AdminPaymentSettingsTest`
+  (novo texto do aviso) atualizados.
+- **Docs**: `docs/40` e `docs/41` atualizados com a regra das URLs de retorno, a
+  causa raiz confirmada e a remoção do modal.
+
+## Ajustes pós-etapa 47 — Holehe: bug do `--timeout` e falha silenciosa
+
+- **Causa raiz (teste manual do módulo Holehe com e-mail real)**: a execução
+  retornava `SUCCESS` com **0 resultados** para um e-mail cadastrado em vários
+  serviços. O `argparse` do Holehe 1.61 declara `-T/--timeout` **sem**
+  `type=int`, então a string (`"10"`) chegava ao `httpx.AsyncClient(timeout=...)`
+  e o backend trio/anyio estourava `TypeError: '<' not supported between
+  instances of 'str' and 'int'` nas requisições que passam pela validação de
+  timeout — cada módulo que estoura é gravado como `rateLimit = True`, ou seja,
+  o CSV dizia "nenhum cadastro" mesmo para um e-mail que existe. Medido no
+  container, mesmo e-mail: `--csv --timeout 10` → 0 encontrados / 116 de 117
+  bloqueados; `--csv` (timeout interno padrão) → 3 encontrados (replit, spotify,
+  twitter) / 74 bloqueados; `--csv --timeout 10` **com o patch** → os mesmos 3
+  encontrados / 72 bloqueados.
+- **Correção**: `docker/php/Dockerfile` aplica o `type=int` que o upstream
+  pretendia (`sed` + `grep` de verificação — o build falha se o padrão não
+  existir mais, em vez de deixar o bug voltar em silêncio). É a única alteração
+  no binário.
+- **Fim da falha silenciosa**: `HoleheReportParser::summarize()` passou a expor o
+  panorama do relatório (`checked`/`found`/`unavailable`); o adapter publica
+  `metadata.sites_checked` e `metadata.sites_unavailable`, exibidos no painel do
+  teste ("Serviços verificados · sem resposta (bloqueio/erro)").
+- **Desfecho honesto**: quando ≥95% dos sites não puderam ser verificados **e**
+  nenhum cadastro apareceu (relatórios com menos de 20 sites ficam fora da
+  regra), o adapter lança `unavailable` em vez de devolver lista vazia — uma
+  consulta não concluída deixa de ser apresentada como "e-mail sem cadastros".
+  Bloqueio alto porém parcial (74 de 117, o normal em IP de datacenter) continua
+  sendo resultado vazio legítimo.
+- **Cache**: `ADAPTER_VERSION` do Holehe foi para `v2` (a versão faz parte da
+  chave do `SourceCache`), então resultados vazios gravados com o bug não são
+  reaproveitados por 1 h de TTL.
+- **Testes**: `HoleheReportParserTest` (panorama no fixture e relatório vazio),
+  `HoleheAdapterTest` (falha em massa → `unavailable`, bloqueio alto parcial →
+  resultado vazio válido, `sites_checked` no caminho feliz) e
+  `AdminModuleTestPanelTest` (panorama na tela de detalhe).
+- **Docs**: `docs/30-holehe-integracao.md` com a causa raiz, as medições, a
+  defesa contra a repetição e o cuidado com `HOLEHE_VERSION` futuro (o patch é
+  local e o build avisa quando ele deixa de se aplicar).
+
+## Ajustes pós-etapa 47 — Instagram: falha no painel de testes e foto no detalhe
+
+- **Causa 1 — sessão não configurada era cobrada e aparecia como erro
+  genérico**: o adapter real lançava `SourceUnavailableException` quando não há
+  `sessionid` salvo — os testes #1/#2 do módulo terminaram `FAILED` com
+  "A fonte está indisponível no momento." e **2 créditos consumidos** por uma
+  consulta que nunca aconteceu. Agora lança `SourceSessionException` (`Skipped`,
+  reserva **estornada**, igual a sessão expirada/desafio — o comportamento que o
+  `ModuleTestRunner` e o `ReleaseReservedCreditsJob` já documentavam).
+- **Causa 2 — imagem desatualizada sem o `instagrapi`**: o `Dockerfile` da etapa
+  48 instala `instagrapi==2.x`, mas a imagem em execução era anterior ao build —
+  `python3 -c "import instagrapi"` falhava com `ModuleNotFoundError`. Imagem
+  reconstruída (`docker compose build app`) e containers recriados; o build
+  confirma a camada com `import instagrapi`.
+- **Mensagem do painel (audiência admin)**: novo
+  `SourceErrorMapper::toOperatorMessage()` — o teste individual passa a exibir a
+  mensagem curada da própria exceção ("Sessão do Instagram não configurada.
+  Informe o sessionid em Configurações → Integrações."), enquanto
+  `source_runs.error_message_public` (relatórios/audiência pública) mantém o
+  texto neutro. `toPublicMessage()` ganhou casos para `session_invalid` e
+  `challenge_required` em vez do default genérico.
+- **Foto no detalhe do teste (prompt 48 §6/§22)**: a seção "Resultados
+  encontrados" agora renderiza a captura de imagem — a evidência `avatar` vira
+  `<img>` (somente URL HTTPS, `loading="lazy"`, `referrerpolicy="no-referrer"`,
+  link para abrir em nova aba) e, para achado do Instagram **sem** foto, exibe
+  "Imagem pública não encontrada" (nunca foto fictícia). O chip textual do
+  avatar deixa de duplicar a URL quando a imagem já está visível.
+- **Correção do Blade**: o arquivo usava `@php(expr)` inline e recebeu um bloco
+  `@php ... @endphp` — o `storePhpBlocks()` do Blade casa `@php ... @endphp`
+  desde o **primeiro** `@php` do arquivo, o que engolia o miolo da view (erro de
+  sintaxe "unexpected token class"). Volto-se à forma inline, que é a
+  convenção deste arquivo.
+- **Testes**: `InstagramAdapterTest` (sessão ausente → `SourceSessionException`
+  + orientação + nenhum processo executado), `InstagramIntegrationTest`
+  (imagem `<img>` na tela; mensagem operacional vs. pública no caso
+  `no_session`), `AdminModuleTestPanelTest` (achado sem foto → "Imagem pública
+  não encontrada") e `SourceAdapterTest` (mensagens públicas/operador de
+  `session_invalid`/`challenge_required`).
+- **Para testar de verdade**: configurar o `sessionid` em
+  Configurações → Integrações (conta burner) e rodar o teste do Instagram em
+  `/admin/testes` — sem credencial o teste agora sai `SKIPPED` com estorno e a
+  orientação de configuração, sem cobrar crédito.
+
+## Ajustes pós-etapa 47 — PIX/cartão aprovado não liberava (webhook ausente)
+
+- **Causa raiz (sandbox real)**: depois do cartão/PIX aprovado, a consulta
+  `GET /checkouts/{CHEC_...}` continua devolvendo `status: ACTIVE` e **sem** o
+  array `charges`. A cobrança paga (`CHAR_...`, `PAID`) só existe no **pedido**
+  do checkout (`orders[].id` → `ORDE_...`). Como a confirmação dependia de
+  `charges` no checkout (ou do webhook, que não chega em `localhost`), o pedido
+  ficava `awaiting_payment` para sempre e os créditos nunca eram liberados.
+- **Correção**: `PagBankProvider::withChargesFromOrders()` +
+  `orderCharges()` seguem `orders[].id` por `GET /orders/{id}` (id devolvido pelo
+  provedor, na API oficial — **nunca** seguindo `links.href` do payload) e usam
+  as cobranças do pedido em `getCheckoutStatus()`, `getCheckoutMethod()` e no
+  webhook. Pedido indisponível mantém `awaiting_payment` (nunca confirmamos por
+  ausência de resposta).
+- **Sincronização forçada**: `php artisan pagbank:sync-payment <ID|olho-ID|CHEC_|ORDE_|idempotency_key>`
+  (`--dry-run`, `--force`) e o botão **Sincronizar** por pedido em
+  `/admin/payments` (POST `admin.payments.sync`, `auth`+`admin`, rate limit
+  `admin-sync` 30/min) — reconsultam o provedor e confirmam o que já estiver pago.
+- **Novo: varredura de todos os pendentes** — `pagbank:sync-payment --pending`
+  percorre todos os `provider = pagbank` em `awaiting_payment` (teto de 100 por
+  execução, uma linha por pedido, resumo no fim; falha em um pedido não
+  interrompe os demais) e o botão **Sincronizar pendentes** no topo de
+  `/admin/payments` (POST `admin.payments.sync-pending`, teto de 25 por clique,
+  resumo no flash). `PaymentService` ganhou `pendingPagBank()` e
+  `reconcilePendingPagBank()`; a confirmação segue idempotente
+  (`payment_events.external_event_id = reconcile-paid-{CHEC_...}`).
+- **Auditoria**: `payment_events.external_event_id` distingue a origem da
+  confirmação — `reconcile-paid-...` (sincronização forçada), `sim_...` (provedor
+  fake) ou o sha1 de 40 dígitos `sha1(checkoutId|status|chargeId)` (webhook).
+  `grep payment.webhook storage/logs/laravel.log` mostra se a notificação chegou
+  (`payment.webhook.received`) ou foi rejeitada (`payment.webhook.rejected`).
+- **Verificação de ponta a ponta (sandbox)**: PIX de R$ 79,90
+  (`CHEC_DBBB022B-...`, cobrança `CHAR_E63D6F8C-...` `PAID` no pedido
+  `ORDE_5AC8A61C-...`) seguia `awaiting_payment` porque o webhook não chegou;
+  `pagbank:sync-payment --pending` confirmou o pedido, gravou `method = PIX` e
+  creditou 500 créditos (`payment-paid-11`, saldo 763 → 1363, junto dos 100 do
+  `#9` também confirmado). A varredura repetida liberou 0 novos
+  (mesma transação no ledger) e os checkouts `#6`/`#7` seguem pendentes porque o
+  PagBank os devolve como `expired` — a reconciliação só **persiste** estado
+  conclusivo de pagamento.
+- **Testes**: `PagBankProviderTest` (status/método pelo pedido do checkout, pedido
+  indisponível mantém `awaiting_payment`, webhook confirmado pelo pedido) e
+  `PagBankSyncTest` (varredura `--pending` com um pago/um pendente/um de outro
+  provedor, idempotência, `--dry-run`, falta de argumento, combinações inválidas,
+  botão do painel com resumo no flash e restrição a admin). Suíte: `447` testes,
+  `5` skipped.
+- **Docs**: `docs/40-pagbank-configuravel.md` (webhook item 3, reconciliação,
+  seção "Sincronização forçada" com a varredura e o roteiro "Como conferir todos
+  os pagamentos e se o webhook chegou", arquivos e testes).
+
+## Ajustes pós-etapa 47 — webhook que chega e não conclui: verificação no worker
+
+- **Decisão**: a confirmação não depende mais de um único momento. Quando o
+  webhook **chega** e não consegue concluir, o pedido passa a ser verificado no
+  **worker** (`ReconcilePaymentJob`) em vez de ficar pendente esperando ação do
+  operador. Dois gatilhos, em `PaymentService::handleWebhook()`:
+  - **erro na reconsulta ao provedor** (rede, `5xx`, `429`, timeout): a exceção
+    continua subindo (resposta `5xx`, então o PagBank **também** reentrega a
+    notificação) e o pedido é agendado com `reason = webhook-error`;
+  - **notificação autenticada que não liberou nada** (status resolvido como
+    aguardando: o pedido do checkout demora a aparecer, ou a consulta degradou —
+    ex.: `payment.webhook.charge_unavailable`): `payment.webhook.inconclusive` e
+    o job com `reason = webhook-inconclusive`.
+- **`ReconcilePaymentJob`**: recebe **apenas o id** do pagamento (nenhum modelo
+  serializado), é `ShouldBeUnique` por pagamento (`uniqueFor` de 10 min: rajada de
+  reentregas não vira fila de consultas), roda no worker com `tries = 3`,
+  `backoff = [60, 300]` e atraso de 1 min no agendamento (não reconsulta no mesmo
+  instante em que a consulta falhou). Uma passada por execução: `reconcile()`
+  idempotente libera créditos da conta ou a investigação avulsa. Logs:
+  `payment.reconcile.job` (concluiu), `payment.reconcile.skipped` (já pago, outro
+  provedor, sem cobrança criada, pagamento inexistente — **nenhuma** chamada à
+  API), `payment.reconcile.failed` (provedor indisponível nas 3 tentativas; o
+  pedido segue pendente e os outros caminhos continuam valendo). **Estado ainda
+  aguardando não é falha**: o job termina normalmente.
+- **Pedido do OLHO a partir da notificação**:
+  `PaymentService::paymentForWebhook()` resolve `external_id`/`provider_checkout_id`
+  (e `metadata.ps_order_id` numa notificação de cobrança `CHAR_`) — sempre pelo id
+  que o provedor devolveu, nunca por `links.href`; id desconhecido grava
+  `payment.webhook.confirm_unmatched` e nada é agendado (o payload não cria
+  pedido).
+- **Painel `/admin/payments`**: novos botões que usam o **worker** em vez de
+  consultar a API na requisição — **Revalidar** na coluna Ações (só para pedido
+  PagBank não pago e com cobrança criada) e **Revalidar pendentes** no topo
+  (teto de 25 por clique, `queuePendingPagBank()`) —, com o resumo no flash. As
+  rotas novas (`admin.payments.revalidate` e `admin.payments.revalidate-pending`)
+  seguem exclusivas de admin com o rate limit `admin-sync`; fora do PagBank ou sem
+  cobrança a resposta é `422`.
+- **Correção de UX no painel**: os botões **Sincronizar**/**Sincronizar
+  pendentes** são formulários HTML e devolviam o **JSON** cru na tela; agora
+  respondem com **flash na própria lista** ("Pagamento #N confirmado no PagBank —
+  créditos liberados." / "… segue pendente (provedor responde \"expired\").") e
+  continuam devolvendo JSON para `Accept: application/json` (API/testes). O
+  endpoint também passou a usar a constante `PaymentSettings::PROVIDER_PAGBANK`.
+- **Testes**: `tests/Feature/PaymentReconcileJobTest.php` (12 cenários: webhook
+  inconclusivo e webhook com erro agendam o job, id desconhecido não agenda, o job
+  confirma e credita uma única vez, libera a avulsa, não gasta chamada à API para
+  pedido já pago/outro provedor, botões Revalidar/Revalidar pendentes com restrição
+  a admin e `422`, botão na lista e flash do Sincronizar). Suíte: `459` testes
+  (`454` passed + `5` skipped), `2046` asserções; `pint --test` sem apontamento nos
+  arquivos desta etapa.
+- **Docs**: `docs/40-pagbank-configuravel.md` (nova seção "Webhook que chega e não
+  conclui: verificação no worker", botões do worker na seção de sincronização,
+  passo 4 do roteiro de conferência, arquivos e testes) e `docs/07-pagamentos.md`.
+- **Fora de escopo (registrado)**: persistir `expired`/`cancelled` no banco,
+  varredura agendada (cron) dos pendentes e alarme de pedido parado — o worker
+  disparado pelo próprio webhook (e pelos botões) cobre o caminho principal.
+

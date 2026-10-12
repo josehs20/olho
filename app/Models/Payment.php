@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Payments\PaymentMethod;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,7 @@ class Payment extends Model
             'expires_at' => 'datetime',
             'paid_at' => 'datetime',
             'metadata' => 'array',
+            'method' => PaymentMethod::class,
         ];
     }
 

@@ -3,6 +3,7 @@
 namespace App\Sources\Adapters\Holehe;
 
 use App\Sources\SourceResult;
+use Generator;
 
 /**
  * Converte o CSV do Holehe para o contrato comum (`SourceResult`).
@@ -33,10 +34,65 @@ final class HoleheReportParser
      */
     public function parseCsv(string $csv, string $email): array
     {
+        $results = [];
+
+        foreach ($this->rows($csv) as $row) {
+            $result = $this->toSourceResult($row, $email);
+
+            if ($result !== null) {
+                $results[] = $result;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Panorama do relatório: quantos sites foram verificados, quantos
+     * confirmaram cadastro e quantos **não puderam** ser verificados.
+     *
+     * `rateLimit = True` no CSV significa "a verificação deste site não
+     * concluiu" (bloqueio/limite do serviço ou exceção interna do módulo), não
+     * "e-mail não cadastrado". O panorama permite distinguir uma consulta que
+     * rodou de verdade de uma que falhou em massa — sem ele, os dois casos
+     * chegam ao painel como "0 resultados" (ver `HoleheAdapter`).
+     *
+     * `found` conta as linhas marcadas como cadastro (`exists = True`, antes da
+     * validação de domínio feita por `parseCsv`); `unavailable` conta as que não
+     * puderam ser verificadas.
+     *
+     * @return array{checked: int, found: int, unavailable: int}
+     */
+    public function summarize(string $csv): array
+    {
+        $checked = 0;
+        $found = 0;
+        $unavailable = 0;
+
+        foreach ($this->rows($csv) as $row) {
+            $checked++;
+
+            if ($this->exists($row)) {
+                $found++;
+            }
+
+            if ($this->isUnavailable($row)) {
+                $unavailable++;
+            }
+        }
+
+        return ['checked' => $checked, 'found' => $found, 'unavailable' => $unavailable];
+    }
+
+    /**
+     * Linhas do CSV como arrays associativos pelo cabeçalho.
+     *
+     * @return Generator<int, array<string, mixed>>
+     */
+    private function rows(string $csv): Generator
+    {
         $lines = preg_split('/\R/', trim($csv)) ?: [];
         $header = str_getcsv((string) array_shift($lines), ',', '"', '');
-
-        $results = [];
 
         foreach ($lines as $line) {
             if (trim($line) === '') {
@@ -50,14 +106,8 @@ final class HoleheReportParser
                 continue;
             }
 
-            $result = $this->toSourceResult($row, $email);
-
-            if ($result !== null) {
-                $results[] = $result;
-            }
+            yield $row;
         }
-
-        return $results;
     }
 
     /**
@@ -102,12 +152,26 @@ final class HoleheReportParser
      */
     private function exists(array $row): bool
     {
-        $exists = $row['exists'] ?? null;
+        return $this->asBool($row['exists'] ?? null);
+    }
 
-        if (is_bool($exists)) {
-            return $exists;
+    /**
+     * `rateLimit = True` = o site não pôde ser verificado (bloqueio, limite ou
+     * exceção interna do módulo) — nunca confundir com "não cadastrado".
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function isUnavailable(array $row): bool
+    {
+        return $this->asBool($row['rateLimit'] ?? null);
+    }
+
+    private function asBool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
         }
 
-        return is_string($exists) && in_array(mb_strtolower(trim($exists)), ['true', 'yes', '1'], true);
+        return is_string($value) && in_array(mb_strtolower(trim($value)), ['true', 'yes', '1'], true);
     }
 }

@@ -71,6 +71,76 @@ class InvestigationService
     }
 
     /**
+     * Estado observável da investigação para a página de resultados (polling).
+     *
+     * Espelha o `progress()` da avulsa (`GuestInvestigationService`) para que a
+     * tela autenticada se mantenha sincronizada com o backend sem `F5`: devolve
+     * status, run, fontes, descobertas já gravadas e o **modo de execução**
+     * congelado no run (mock vs. integração real). Nada é inferido ou simulado —
+     * só o que o pipeline persistiu.
+     *
+     * @return array<string, mixed>
+     */
+    public function progress(Investigation $investigation): array
+    {
+        $run = $investigation->currentRun()
+            ->with(['sourceRuns.sourceDefinition', 'sourceRuns.sourceResults.evidence', 'report'])
+            ->first();
+
+        $sources = $run === null
+            ? []
+            : $run->sourceRuns->sortBy('id')->values()->map(fn ($sourceRun) => [
+                'source' => $sourceRun->source,
+                'name' => $sourceRun->sourceDefinition?->name ?? $sourceRun->source,
+                'status' => $sourceRun->status,
+                'display_status' => $sourceRun->displayStatus(),
+                'results' => $sourceRun->sourceResults->count(),
+            ])->all();
+
+        // Prévia de descobertas: apenas representantes reais (sem duplicatas).
+        $discoveries = [];
+
+        if ($run !== null) {
+            foreach ($run->sourceRuns as $sourceRun) {
+                foreach ($sourceRun->sourceResults as $result) {
+                    if (! empty($result->metadata['duplicate_of'])) {
+                        continue;
+                    }
+
+                    $discoveries[] = [
+                        'platform' => $result->metadata['platform'] ?? $sourceRun->sourceDefinition?->name ?? $sourceRun->source,
+                        'source' => $sourceRun->source,
+                        'value' => $result->value,
+                        'title' => $result->title,
+                        'url' => $result->url,
+                        'confidence' => $result->confidence !== null ? (float) $result->confidence : null,
+                        'observed_at' => $result->observed_at?->toISOString(),
+                    ];
+                }
+            }
+        }
+
+        return [
+            'status' => $investigation->status,
+            'execution_mode' => $run->metadata['execution_mode'] ?? null,
+            'run' => $run === null ? null : [
+                'id' => $run->id,
+                'status' => $run->status,
+                'started_at' => $run->started_at?->toISOString(),
+                'finished_at' => $run->finished_at?->toISOString(),
+                'error_summary' => $run->error_summary,
+            ],
+            'sources' => $sources,
+            'discoveries' => $discoveries,
+            'discoveries_total' => count($discoveries),
+            'completed_sources' => $run === null ? 0 : $run->sourceRuns->where('status', 'completed')->count(),
+            'correlated' => $run !== null && is_array($run->metadata['correlation'] ?? null),
+            'report_available' => $run !== null && ($run->report !== null
+                || in_array($run->status, [InvestigationRun::STATUS_COMPLETED, InvestigationRun::STATUS_PARTIAL], true)),
+        ];
+    }
+
+    /**
      * Reexecução controlada (prompt 39 / docs/02).
      *
      * Cria um **novo run** a partir do snapshot da última execução, com reserva

@@ -25,7 +25,7 @@ use App\Services\LogSanitizer;
 use App\Services\ReportManifestBuilder;
 use App\Services\ResultDeduplicator;
 use App\Services\SourceCache;
-use App\Services\SourceResultNormalizer;
+use App\Services\SourceOutcomePersister;
 use App\Sources\SourceRegistry;
 use Database\Seeders\SourceDefinitionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -132,7 +132,7 @@ class CreditRetryIdempotencyTest extends TestCase
             (new ExecuteSourceJob($sourceRun->id))->handle(
                 app(SourceRegistry::class),
                 app(SourceCache::class),
-                app(SourceResultNormalizer::class),
+                app(SourceOutcomePersister::class),
                 app(LogSanitizer::class),
             );
         }
@@ -256,7 +256,7 @@ class CreditRetryIdempotencyTest extends TestCase
         (new ExecuteSourceJob($usernameSourceRun->id))->handle(
             app(SourceRegistry::class),
             app(SourceCache::class),
-            app(SourceResultNormalizer::class),
+            app(SourceOutcomePersister::class),
             app(LogSanitizer::class),
         );
 
@@ -335,7 +335,7 @@ class CreditRetryIdempotencyTest extends TestCase
         (new ExecuteSourceJob($sourceRun->id))->handle(
             app(SourceRegistry::class),
             app(SourceCache::class),
-            app(SourceResultNormalizer::class),
+            app(SourceOutcomePersister::class),
             app(LogSanitizer::class),
         );
 
@@ -349,7 +349,7 @@ class CreditRetryIdempotencyTest extends TestCase
         (new ExecuteSourceJob($sourceRun->id))->handle(
             app(SourceRegistry::class),
             app(SourceCache::class),
-            app(SourceResultNormalizer::class),
+            app(SourceOutcomePersister::class),
             app(LogSanitizer::class),
         );
 

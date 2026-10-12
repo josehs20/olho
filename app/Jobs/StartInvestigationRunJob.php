@@ -12,6 +12,7 @@ use App\Services\CreditLedgerService;
 use App\Services\InvestigationOrchestrator;
 use App\Services\LogSanitizer;
 use App\Sources\InvestigationInput;
+use App\Sources\OsintMode;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -130,6 +131,15 @@ class StartInvestigationRunJob implements ShouldBeUnique, ShouldQueue
             'breakdown' => $selection['applicable']
                 ->mapWithKeys(fn (SourceDefinition $definition) => [$definition->slug => (int) $definition->cost_credits])
                 ->all(),
+            'snapshot_at' => now()->toISOString(),
+        ];
+        // Modo de execução (mock vs. integração real) congelado no run: a UI e o
+        // relatório exibem o que valia **nesta** execução, mesmo que o operador
+        // mude `OSINT_MODE` depois. A escolha real/mock continua sendo apenas do
+        // ambiente (AppServiceProvider), nunca da entrada do usuário.
+        $metadata['execution_mode'] = [
+            'mode' => OsintMode::mode(),
+            'label' => OsintMode::label(),
             'snapshot_at' => now()->toISOString(),
         ];
         $run->metadata = $metadata;

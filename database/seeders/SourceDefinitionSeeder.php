@@ -27,6 +27,10 @@ class SourceDefinitionSeeder extends Seeder
         ['slug' => 'sherlock', 'name' => 'Sherlock', 'type' => 'username', 'cost_credits' => 2, 'timeout' => 60],
         ['slug' => 'whatsmyname', 'name' => 'WhatsMyName', 'type' => 'username', 'cost_credits' => 2, 'timeout' => 60],
         ['slug' => 'holehe', 'name' => 'Holehe', 'type' => 'email', 'cost_credits' => 2, 'timeout' => 60],
+        // Etapa 2 da pipeline (prompt 48): enriquecimento de perfil do Instagram
+        // a partir do username confirmado na etapa 1. Precisa da sessão de
+        // serviço configurada em /admin/settings/integrations.
+        ['slug' => 'instagram', 'name' => 'Instagram (instagrapi)', 'type' => 'username', 'cost_credits' => 2, 'timeout' => 60],
     ];
 
     public function run(): void

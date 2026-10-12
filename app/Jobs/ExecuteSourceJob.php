@@ -2,19 +2,16 @@
 
 namespace App\Jobs;
 
-use App\Models\SourceDefinition;
 use App\Models\SourceRun;
 use App\Services\LogSanitizer;
 use App\Services\SourceCache;
-use App\Services\SourceResultNormalizer;
+use App\Services\SourceOutcomePersister;
 use App\Sources\Exceptions\SourceException;
 use App\Sources\InvestigationContext;
 use App\Sources\InvestigationInput;
 use App\Sources\SourceDescriptor;
 use App\Sources\SourceErrorMapper;
-use App\Sources\SourceOutcome;
 use App\Sources\SourceRegistry;
-use App\Sources\SourceResult;
 use App\Sources\SourceRunStatus;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -41,7 +38,7 @@ class ExecuteSourceJob implements ShouldBeUnique, ShouldQueue
     public function handle(
         SourceRegistry $registry,
         SourceCache $cache,
-        SourceResultNormalizer $normalizer,
+        SourceOutcomePersister $persister,
         LogSanitizer $sanitizer,
     ): void {
         $sourceRun = SourceRun::findOrFail($this->sourceRunId);
@@ -89,11 +86,8 @@ class ExecuteSourceJob implements ShouldBeUnique, ShouldQueue
 
             $outcome = $cache->remember($adapter, $input, fn () => $adapter->execute($context));
 
-            foreach ($outcome->findings as $result) {
-                $this->persistResult($sourceRun, $definition, $result, $normalizer);
-            }
-
-            $this->recordOutcome($sourceRun, $outcome);
+            $persister->persist($sourceRun, $definition, $outcome);
+            $persister->record($sourceRun, $outcome);
 
             $this->finish($sourceRun, SourceRunStatus::Completed, null, null, $started);
         } catch (SourceException $e) {
@@ -123,51 +117,6 @@ class ExecuteSourceJob implements ShouldBeUnique, ShouldQueue
         ]));
 
         $this->continueRunIfDone($sourceRun->investigation_run_id);
-    }
-
-    private function persistResult(
-        SourceRun $sourceRun,
-        SourceDefinition $definition,
-        SourceResult $result,
-        SourceResultNormalizer $normalizer,
-    ): void {
-        $model = $sourceRun->sourceResults()->create(array_merge(
-            ['source_definition_id' => $definition->id],
-            $normalizer->attributes($result),
-        ));
-
-        foreach ($normalizer->evidenceAttributes($result) as $evidence) {
-            $model->evidence()->create($evidence);
-        }
-    }
-
-    /**
-     * Persiste o que a execução produziu (prompt 31): contagem de resultados,
-     * versão da ferramenta e avisos/metadados públicos do adapter.
-     */
-    private function recordOutcome(SourceRun $sourceRun, SourceOutcome $outcome): void
-    {
-        $sourceRun->result_count = count($outcome->findings);
-        $sourceRun->tool_version = $this->toolVersion($outcome);
-
-        $metrics = $sourceRun->metrics ?? [];
-
-        if ($outcome->warnings !== []) {
-            $metrics['warnings'] = array_slice($outcome->warnings, 0, 20);
-        }
-
-        if ($outcome->metadata !== []) {
-            $metrics['adapter'] = $outcome->metadata;
-        }
-
-        $sourceRun->metrics = $metrics;
-    }
-
-    private function toolVersion(SourceOutcome $outcome): ?string
-    {
-        $version = $outcome->metadata['tool_version'] ?? null;
-
-        return is_scalar($version) ? (string) $version : null;
     }
 
     private function finish(SourceRun $sourceRun, SourceRunStatus $status, ?string $errorCode, ?string $errorMessage, float $started): void

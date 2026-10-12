@@ -58,7 +58,10 @@ caber no timeout do job.
 
 Entradas sem URL válida são descartadas. Avisos `[!] ...` do Maigret viram
 `SourceOutcome.warnings` → `source_runs.metrics.warnings`; a versão da ferramenta
-vai para `source_runs.tool_version`.
+vai para `source_runs.tool_version`. O texto exibido ao usuário sai **em
+português**: `ToolWarningsTranslator` traduz, no ponto de leitura
+(`ToolOutput::publicWarnings()`), os tipos de erro do Maigret e as recomendações
+associadas; mensagem não catalogada é preservada como veio (nunca é descartada).
 
 ## Configuração
 

@@ -33,85 +33,10 @@
 
 <x-public-layout robots="index, follow" :title="config('app.name', 'Olho').' — investigação de presença digital'">
     <x-slot name="full">
-        <section class="relative overflow-hidden border-b border-line/70">
-            <div class="pointer-events-none absolute inset-0 aurora" aria-hidden="true"></div>
-            <div class="pointer-events-none absolute inset-0 hud-grid opacity-50" aria-hidden="true"></div>
-
-            <div class="relative mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
-                <div class="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
-                    <div class="animate-rise">
-                        <p class="eyebrow">{{ __('OLHO · investigação de presença digital') }}</p>
-
-                        <h1 class="mt-4 text-4xl font-semibold leading-[1.05] tracking-tight text-mist-50 sm:text-5xl lg:text-6xl">
-                            {{ __('VOCÊ DÁ A PISTA.') }}<br />
-                            <span class="text-gradient">{{ __('O OLHO PROCURA.') }}</span>
-                        </h1>
-
-                        <p class="mt-6 max-w-xl text-base leading-relaxed text-mist-300 sm:text-lg">
-                            {{ __('Um nome. Um usuário. Um e-mail. O Olho procura sinais públicos em Instagram, Facebook, TikTok, X, LinkedIn, YouTube, sites e menções — e reúne o que encontra com origem e evidências. Talvez exista mais do que você imagina.') }}
-                        </p>
-
-                        <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                            <x-btn href="{{ route('guest.investigations.create') }}" variant="primary" size="lg" class="w-full sm:w-auto">
-                                {{ __('INVESTIGAR AGORA') }}
-                            </x-btn>
-
-                            @auth
-                                <x-btn href="{{ route('dashboard') }}" variant="outline" size="lg" class="w-full sm:w-auto">{{ __('Ir para o painel') }}</x-btn>
-                            @else
-                                <x-btn href="{{ route('login') }}" variant="outline" size="lg" class="w-full sm:w-auto">{{ __('Já possui conta? Entrar') }}</x-btn>
-                            @endauth
-                        </div>
-
-                        @if ($guestPrice !== null)
-                            <p class="mt-4 text-sm text-mist-400">
-                                {{ __('Investigação avulsa por') }}
-                                <span class="font-semibold text-mist-100">{{ __('R$') }} {{ number_format($guestPrice / 100, 2, ',', '.') }}</span>
-                                {{ __('· pagamento único · sem cadastro obrigatório') }}
-                            </p>
-                        @endif
-
-                        <ul class="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-xs text-mist-400">
-                            <li class="flex items-center gap-2"><span class="text-signal-300" aria-hidden="true">◆</span>{{ __('Pagamento único, sem assinatura') }}</li>
-                            <li class="flex items-center gap-2"><span class="text-signal-300" aria-hidden="true">◆</span>{{ __('Investigação em fontes públicas') }}</li>
-                            <li class="flex items-center gap-2"><span class="text-signal-300" aria-hidden="true">◆</span>{{ __('Resultado protegido por acesso exclusivo') }}</li>
-                        </ul>
-                    </div>
-
-                    <div class="relative animate-rise" style="animation-delay: 120ms">
-                        <div class="surface relative overflow-hidden p-6">
-                            <div class="flex items-center justify-between">
-                                <p class="eyebrow">{{ __('O Olho está procurando') }}</p>
-                                <x-badge tone="signal">{{ __('fontes públicas') }}</x-badge>
-                            </div>
-
-                            <div class="mt-5 space-y-3">
-                                @foreach ([
-                                    [__('O Olho está iniciando a busca...'), 100],
-                                    [__('Verificando usernames...'), 180],
-                                    [__('Consultando fontes públicas...'), 260],
-                                    [__('Organizando sinais encontrados...'), 340],
-                                    [__('Conectando pistas entre fontes...'), 420],
-                                    [__('Montando sua investigação...'), 500],
-                                ] as [$step, $delay])
-                                    <div class="flex items-center gap-3 text-sm text-mist-300" style="animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) {{ $delay }}ms both">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-signal-400 animate-pulse-soft" aria-hidden="true"></span>
-                                        {{ $step }}
-                                    </div>
-                                @endforeach
-                            </div>
-
-                            <div class="mt-6 h-px w-full bg-gradient-to-r from-transparent via-signal-500/60 to-transparent"></div>
-
-                            <p class="mt-4 text-xs leading-relaxed text-mist-500">
-                                {{ __('O que será que o Olho encontra? Ilustração do acompanhamento: durante a execução, cada etapa e cada fonte exibem o estado real registrado pela plataforma.') }}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
+        @include('welcome.partials.hero')
     </x-slot>
+
+    @include('welcome.partials.benefits')
 
     <section id="o-que-investigamos" class="scroll-mt-24">
         <x-section-heading

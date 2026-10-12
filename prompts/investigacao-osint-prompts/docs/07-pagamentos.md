@@ -75,3 +75,35 @@ Não imprimir chave PIX real nos logs.
   idempotente. Pedidos de conta seguem creditando o pacote.
 - Não existe rota que aceite "pago" do front; a confirmação vem do webhook do
   gateway (ou da simulação, apenas com `PAYMENT_PROVIDER=fake`).
+
+## Comprar créditos (checkout hospedado)
+
+- `GET /credits` lista os pacotes com um **botão por canal** (`channel=pix` ou
+  `channel=card`). Não há modal nem JavaScript: cada botão é um `POST` para
+  `payments.store`.
+- O `POST` responde com um redirecionamento: para o link do provedor
+  (`payments.checkout_url`) quando existe checkout hospedado, ou para a página do
+  pedido (`payments.show`) quando é o OLHO que emite o PIX.
+- O destino abre em **outra aba** (`target="_blank"` no formulário — que já
+  implica `noopener` para formulários pela própria especificação HTML): a tela de
+  créditos continua aberta, então o comprador volta, recarrega e vê o saldo
+  (exibido na própria `/credits`, lido da carteira no servidor). O mesmo vale para
+  o link "PAGAR COM PAGBANK" na página do pedido e na página pública da avulsa.
+- Nenhum dado de pagador passa pelo OLHO: a escolha do meio e o CPF/CNPJ são
+  informados na página do provedor.
+
+## Gateway real PagBank (prompt 45)
+
+A partir do prompt 45 o provedor ativo passa a ser escolhido pelo administrador
+em `/admin/settings/payments` (`PaymentSettings` sobre a tabela `settings`), com
+suporte a **PagBank Checkout** para PIX, débito e crédito. Detalhes de
+arquitetura, webhook zero-trust, variáveis e pendências em
+`docs/40-pagbank-configuravel.md`. O `FakePixProvider` continua sendo o default do
+repositório e o provedor da suíte de testes.
+
+Quando a notificação do provedor **chega e não conclui** (erro na reconsulta ou
+status ainda aguardando), `PaymentService::handleWebhook()` agenda
+`ReconcilePaymentJob`: o worker reconsulta o PagBank e libera créditos ou a
+investigação avulsa pelo mesmo caminho idempotente do webhook — e o painel
+`/admin/payments` tem o botão **Revalidar** (por pedido) e **Revalidar
+pendentes** (em lote) para acionar essa verificação manualmente.

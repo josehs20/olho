@@ -1,4 +1,4 @@
-<nav x-data="{ open: false }" class="relative border-b border-line/70 bg-ink-950/85 backdrop-blur">
+<nav x-data="{ open: false }" class="relative z-40 border-b border-line/70 bg-ink-950/85 backdrop-blur">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center justify-between gap-4">
             <div class="flex items-center gap-8">

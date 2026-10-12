@@ -19,11 +19,14 @@ Durante:
 - evite refatorações não relacionadas;
 - crie testes junto com o comportamento.
 
-Depois:
-- execute testes;
-- execute lint/formatador disponível;
+Depois (modo de desenvolvimento rápido, etapa 46):
+- faça verificações rápidas (sintaxe, imports, rotas, configuração, estrutura);
+- corrija erros óbvios relacionados à alteração;
+- entrega para validação manual; suíte completa/lint apenas na validação final
+  ou quando o usuário solicitar explicitamente;
 - valide migrations/configuração quando aplicável;
-- resuma arquivos alterados, testes executados e pendências.
+- resuma arquivos alterados, verificações feitas e o que ficou pendente de
+  validação manual (não afirmar testes que não foram executados).
 
 Se houver ambiguidade:
 - prefira a interpretação mais conservadora que preserve os requisitos;

@@ -13,6 +13,7 @@ use App\Models\SourceDefinition;
 use App\Models\SourceResult;
 use App\Models\User;
 use App\Payments\PaymentStatus;
+use App\Sources\SourceRegistry;
 use App\Sources\SourceRunStatus;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\DemoUsersSeeder;
@@ -38,7 +39,7 @@ class DemoDataSeederTest extends TestCase
         $user = User::query()->where('email', 'usuario@example.com')->firstOrFail();
 
         $this->assertSame(2, User::query()->count());
-        $this->assertSame(7, SourceDefinition::query()->count());
+        $this->assertSame(count(app(SourceRegistry::class)->all()), SourceDefinition::query()->count());
         $this->assertSame(3, CreditPackage::query()->where('kind', CreditPackage::KIND_CREDITS)->count());
         $this->assertSame(1, CreditPackage::query()->where('kind', CreditPackage::KIND_GUEST_INVESTIGATION)->count());
 
@@ -100,7 +101,7 @@ class DemoDataSeederTest extends TestCase
         $user = User::query()->where('email', 'usuario@example.com')->firstOrFail();
 
         $this->assertSame(2, User::query()->count());
-        $this->assertSame(7, SourceDefinition::query()->count());
+        $this->assertSame(count(app(SourceRegistry::class)->all()), SourceDefinition::query()->count());
         $this->assertSame(3, CreditPackage::query()->where('kind', CreditPackage::KIND_CREDITS)->count());
         $this->assertSame(1, CreditPackage::query()->where('kind', CreditPackage::KIND_GUEST_INVESTIGATION)->count());
         $this->assertSame(4, $user->investigations()->count());

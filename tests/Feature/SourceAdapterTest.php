@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Sources\Exceptions\SourceChallengeException;
 use App\Sources\Exceptions\SourceNotRegisteredException;
+use App\Sources\Exceptions\SourceSessionException;
 use App\Sources\Exceptions\SourceTimeoutException;
 use App\Sources\Exceptions\SourceUnavailableException;
 use App\Sources\InvestigationContext;
@@ -94,6 +96,40 @@ class SourceAdapterTest extends TestCase
 
         $this->assertSame('error', SourceErrorMapper::toErrorCode(new \RuntimeException('x')));
         $this->assertSame(SourceRunStatus::Failed, SourceErrorMapper::toRunStatus(new \RuntimeException('x')));
+    }
+
+    /**
+     * Sessão/desafio da conta de serviço: público vê texto neutro; o painel
+     * admin recebe a orientação operacional da própria exceção.
+     */
+    public function test_error_mapper_separates_public_and_operator_messages_for_session_failures(): void
+    {
+        $session = new SourceSessionException('Sessão do Instagram não configurada. Informe o sessionid em Configurações → Integrações.');
+
+        $this->assertSame('session_invalid', SourceErrorMapper::toErrorCode($session));
+        $this->assertSame(SourceRunStatus::Skipped, SourceErrorMapper::toRunStatus($session));
+        $this->assertSame(
+            'A conexão com a plataforma não está autenticada; a consulta não foi realizada.',
+            SourceErrorMapper::toPublicMessage($session),
+        );
+        $this->assertSame(
+            'Sessão do Instagram não configurada. Informe o sessionid em Configurações → Integrações.',
+            SourceErrorMapper::toOperatorMessage($session),
+        );
+
+        $challenge = new SourceChallengeException('O Instagram exige verificação humana.');
+
+        $this->assertSame('challenge_required', SourceErrorMapper::toErrorCode($challenge));
+        $this->assertSame(
+            'A plataforma exigiu uma verificação adicional; a consulta não foi realizada.',
+            SourceErrorMapper::toPublicMessage($challenge),
+        );
+
+        // Falha fora do contrato de fontes nunca vaza mensagem interna.
+        $this->assertSame(
+            'Não foi possível concluir a consulta nesta fonte.',
+            SourceErrorMapper::toOperatorMessage(new \RuntimeException('traceback interno')),
+        );
     }
 
     public function test_email_and_web_sources_execute(): void

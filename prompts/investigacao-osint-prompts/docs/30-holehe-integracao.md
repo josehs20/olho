@@ -14,6 +14,44 @@ do escopo de informações públicas e com salvaguardas explícitas.
 | Saída | CSV `holehe_<epoch>_<email>_results.csv` com `name,domain,method,frequent_rate_limit,rateLimit,exists,emailrecovery,phoneNumber,others` |
 | Código de saída | **1 mesmo em execução bem-sucedida** — o CSV gerado é o sinal confiável |
 
+## Correção aplicada na imagem (bug do `--timeout` do upstream)
+
+O `argparse` do Holehe 1.61 declara `-T/--timeout` **sem** `type=int`, então a
+string (`"10"`) chega ao `httpx.AsyncClient(timeout=...)` e o backend trio/anyio
+estoura `TypeError: '<' not supported between instances of 'str' and 'int'` nas
+requisições que passam pela validação de timeout. O módulo que estoura é gravado
+como `rateLimit = True` no CSV, então a ferramenta devolve **"nenhum cadastro"** —
+indistinguível, no painel, de um e-mail realmente sem cadastros.
+
+Medido no container em 02/10/2026 (mesmo e-mail, execuções sequenciais):
+
+| Comando | Encontrados | `rateLimit = True` |
+|---|---|---|
+| `--csv --timeout 10` (com o bug) | **0** | 116 de 117 |
+| `--csv` (timeout interno padrão, `int`) | 3 (replit, spotify, twitter) | 74 de 117 |
+| `--csv --timeout 10` (com o patch) | 3 (replit, spotify, twitter) | 72 de 117 |
+
+Evidência de causa: `unexpected error: '<' not supported between instances of
+'str' and 'int'` no stdout de 51 dos 117 módulos e o mesmo `TypeError` capturado
+pelo `check_used` nos demais.
+
+`docker/php/Dockerfile` aplica o `type=int` que o upstream pretendia (`sed` com
+`grep` de verificação — o build falha se o padrão não existir, em vez de deixar o
+bug voltar silenciosamente). É a única alteração feita no binário.
+
+### Defesa contra a repetição silenciosa
+
+- `HoleheReportParser::summarize()` lê o panorama do CSV (`checked`, `found`,
+  `unavailable`); os números viram `metadata.sites_checked` /
+  `metadata.sites_unavailable` e aparecem no painel do teste ("Serviços
+  verificados · sem resposta (bloqueio/erro)").
+- `HoleheAdapter` marca a execução como **`unavailable`** quando ≥95% dos sites
+  não puderam ser verificados **e** nenhum cadastro apareceu (relatórios com
+  menos de 20 sites não entram na regra). Bloqueio alto *parcial* — 74 de 117,
+  por exemplo — continua sendo resultado vazio legítimo.
+- `ADAPTER_VERSION` foi para `v2`: a chave do cache inclui a versão do adapter,
+  então um resultado vazio obtido com o bug não é reaproveitado do cache.
+
 ## Escopo e salvaguardas (inegociáveis)
 
 1. **`--no-password-recovery` é obrigatório e não configurável**: o passo de
@@ -65,16 +103,26 @@ domínio, `url = https://<domínio>`, evidência
 `email_registration_indicator` = domínio e metadados
 `site/domain/method/tool/signal=public_signup_check`.
 
+`summarize()` lê o panorama da varredura (`checked`/`found`/`unavailable`) e o
+adapter o publica como `metadata.sites_checked` / `metadata.sites_unavailable` —
+é o que permite distinguir "consulta sem correspondência" de "ferramenta que não
+verificou nada" no painel e no log.
+
 Mapeamento de falhas: sem CSV → `unavailable`; timeout → `timeout`; e-mail
-inválido → `invalid_input` (sem executar nada).
+inválido → `invalid_input` (sem executar nada); relatório em que ≥95% dos sites
+não puderam ser verificados e nenhum cadastro apareceu → `unavailable` (consulta
+não concluída, nunca "nenhum cadastro encontrado").
 
 ## Testes
 
-- `HoleheReportParserTest` — conversão, descarte de domínio inválido e prova de
-  que colunas de recuperação nunca entram no domínio;
-- `HoleheAdapterTest` — resultado encontrado (com `exit_code = 1`), nenhum
-  resultado, relatório ausente, timeout, e-mail inválido sem execução, `-NP`
-  obrigatório na argv, limpeza do diretório e troca mock↔process;
+- `HoleheReportParserTest` — conversão, descarte de domínio inválido, prova de
+  que colunas de recuperação nunca entram no domínio e panorama
+  (`summarize`: `checked`/`found`/`unavailable`, inclusive relatório vazio);
+- `HoleheAdapterTest` — resultado encontrado (com `exit_code = 1` e
+  `sites_checked`), nenhum resultado, **falha em massa → `unavailable`**,
+  **bloqueio alto parcial → resultado vazio legítimo**, relatório ausente,
+  timeout, e-mail inválido sem execução, `-NP` obrigatório na argv, limpeza do
+  diretório e troca mock↔process;
 - `HoleheRealIntegrationTest` (gated por `OSINT_E2E=1`) — execução real com
   **e-mail de domínio reservado** (RFC 2606, `test@example.com`), que não
   pertence a nenhum titular.
@@ -86,9 +134,15 @@ docker compose exec -e OSINT_E2E=1 app php artisan test --filter=HoleheRealInteg
 ## Limitações
 
 - Muitos serviços bloqueiam/limitam as consultas anônimas: falsos negativos são
-  esperados;
+  esperados. Numa execução real de 117 sites, ~70 costumam ficar sem resposta —
+  por isso o painel mostra quantos sites foram verificados e quantos não;
+- o binário da imagem leva **um** patch local (`argparse`/`--timeout`, ver
+  acima): ao trocar `HOLEHE_VERSION`, o build falha se o padrão não existir mais
+  e o patch precisa ser revisado/removido;
 - o resultado é um **indício de cadastro**, não um perfil: não há URL de perfil
   (apenas o domínio do serviço), o que limita a correlação;
 - a licença GPL-3.0 do binário não alcança o código da aplicação enquanto o uso
   for interno/SaaS (processo separado, sem distribuição do binário); se a imagem
-  passar a ser distribuída, aplicar as obrigações da GPL.
+  passar a ser distribuída, aplicar as obrigações da GPL. Note que o patch acima
+  altera o binário: a distribuição da imagem exigiria publicar também a
+  modificação (é uma correção de uma linha, compatível com a GPL).

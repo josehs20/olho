@@ -69,4 +69,25 @@ class HoleheReportParserTest extends TestCase
         $this->assertNull($this->parser->toSourceResult(['exists' => 'True', 'domain' => ''], 'a@b.test'));
         $this->assertNull($this->parser->toSourceResult(['exists' => 'False', 'domain' => 'github.com'], 'a@b.test'));
     }
+
+    public function test_summarize_reports_checked_found_and_unavailable_sites(): void
+    {
+        $report = $this->parser->summarize($this->csvFixture());
+
+        // 7 linhas no fixture, todas com o sinal `rateLimit = True` (a ferramenta
+        // marca assim tanto o bloqueio quanto a exceção interna do módulo); 4
+        // linhas vieram marcadas como cadastro (`exists = True`), das quais 2
+        // têm domínio inválido e são descartadas pelo `parseCsv`.
+        $this->assertSame(['checked' => 7, 'found' => 4, 'unavailable' => 7], $report);
+    }
+
+    public function test_summarize_on_empty_report_is_all_zero(): void
+    {
+        $header = "name,domain,method,frequent_rate_limit,rateLimit,exists,emailrecovery,phoneNumber,others\n";
+
+        $this->assertSame(
+            ['checked' => 0, 'found' => 0, 'unavailable' => 0],
+            $this->parser->summarize($header),
+        );
+    }
 }

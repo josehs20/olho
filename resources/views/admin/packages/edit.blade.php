@@ -20,21 +20,21 @@
    @method('PUT')
    <div>
     <label class="block text-sm font-medium text-mist-300">{{ __('Nome') }}</label>
-    <input type="text" name="name" value="{{ old('name', $package->name) }}" class="mt-1 block w-full rounded-md border-line sm:text-sm">
+    <input type="text" name="name" value="{{ old('name', $package->name) }}" class="field mt-1">
     @error('name') <p class="mt-1 text-sm text-rose-300">{{ $message }}</p> @enderror
    </div>
 
    @unless ($package->isGuestKind())
     <div>
     <label class="block text-sm font-medium text-mist-300">{{ __('Créditos') }}</label>
-    <input type="number" name="credits" value="{{ old('credits', $package->credits) }}" class="mt-1 block w-full rounded-md border-line sm:text-sm">
+    <input type="number" name="credits" value="{{ old('credits', $package->credits) }}" class="field mt-1">
     @error('credits') <p class="mt-1 text-sm text-rose-300">{{ $message }}</p> @enderror
     </div>
    @endunless
 
    <div>
     <label class="block text-sm font-medium text-mist-300">{{ __('Preço em centavos') }}</label>
-    <input type="number" name="price_cents" value="{{ old('price_cents', $package->price_cents) }}" class="mt-1 block w-full rounded-md border-line sm:text-sm">
+    <input type="number" name="price_cents" value="{{ old('price_cents', $package->price_cents) }}" class="field mt-1">
     @error('price_cents') <p class="mt-1 text-sm text-rose-300">{{ $message }}</p> @enderror
    </div>
 

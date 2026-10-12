@@ -25,20 +25,24 @@ class RegisteredUserController extends Controller
     /**
      * Handle an incoming registration request.
      *
+     * O cadastro guarda apenas o necessário para operar a conta: nome, e-mail e
+     * senha. Nenhum dado de pagador (CPF/CNPJ) é pedido aqui — quem identifica o
+     * pagador é a página hospedada do provedor, no momento da compra.
+     *
      * @throws ValidationException
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make($data['password']),
         ]);
 
         Auth::login($user);

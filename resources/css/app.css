@@ -72,6 +72,10 @@
 }
 
 @layer base {
+    /* Alpine: esconde o conteúdo até o componente inicializar (evita o flash do
+       "Gerando..." e do prazo de validade do PIX antes do primeiro estado real). */
+    [x-cloak] { display: none !important; }
+
     html {
         color-scheme: dark;
         scroll-behavior: smooth;
@@ -99,6 +103,51 @@
         background: var(--color-ink-600);
         border-radius: 999px;
         border: 2px solid var(--color-ink-900);
+    }
+
+    /*
+     | Controles de formulário — base escura.
+     | O plugin @tailwindcss/forms define `background-color: #fff` por padrão;
+     | como a aplicação é sempre dark, sobrescrevemos os controles nativos para
+     | que nenhum input fique branco (mesmo sem a classe `.field`).
+     */
+    input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='submit']):not([type='button']):not([type='reset']):not([type='file']):not([type='range']):not([type='color']):not([type='image']),
+    select,
+    textarea {
+        background-color: color-mix(in oklab, var(--color-ink-900) 92%, transparent);
+        border-color: var(--color-line);
+        border-radius: 0.75rem;
+        color: var(--color-mist-100);
+        caret-color: var(--color-signal-400);
+    }
+
+    input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='submit']):not([type='button']):not([type='reset']):not([type='file']):not([type='range']):not([type='color']):not([type='image'])::placeholder,
+    textarea::placeholder {
+        color: color-mix(in oklab, var(--color-mist-400) 72%, transparent);
+        opacity: 1;
+    }
+
+    input[type='checkbox'],
+    input[type='radio'] {
+        background-color: color-mix(in oklab, var(--color-ink-900) 92%, transparent);
+        border-color: var(--color-line);
+        color: var(--color-signal-400);
+    }
+
+    input[type='checkbox']:focus,
+    input[type='radio']:focus {
+        outline: none;
+        border-color: var(--color-signal-400);
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-signal-400) 25%, transparent);
+    }
+
+    /* Autofill do Chrome não deve pintar fundo/ texto claros */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+        -webkit-text-fill-color: var(--color-mist-100);
+        -webkit-box-shadow: 0 0 0 1000px color-mix(in oklab, var(--color-ink-850) 96%, transparent) inset;
+        caret-color: var(--color-signal-400);
     }
 }
 
@@ -210,27 +259,70 @@
     /* Campos */
     .field {
         width: 100%;
-        background: color-mix(in oklab, var(--color-ink-900) 85%, transparent);
+        background-color: color-mix(in oklab, var(--color-ink-900) 92%, transparent);
+        background-image: linear-gradient(180deg, color-mix(in oklab, var(--color-ink-800) 60%, transparent), transparent 82%);
         border: 1px solid var(--color-line);
         border-radius: 0.75rem;
         color: var(--color-mist-100);
+        caret-color: var(--color-signal-400);
         padding: 0.7rem 0.9rem;
         font-size: 0.9rem;
-        transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        line-height: 1.35rem;
+        box-shadow: inset 0 1px 0 0 color-mix(in oklab, #ffffff 4%, transparent);
+        transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
     }
 
-    .field::placeholder { color: color-mix(in oklab, var(--color-mist-500) 90%, transparent); }
+    .field::placeholder {
+        color: color-mix(in oklab, var(--color-mist-400) 72%, transparent);
+        opacity: 1;
+    }
+
+    .field:hover:not(:disabled):not([aria-invalid='true']):not(.field-error) {
+        border-color: color-mix(in oklab, var(--color-ink-600) 75%, var(--color-line));
+    }
 
     .field:focus {
         outline: none;
         border-color: var(--color-signal-400);
-        box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-signal-400) 22%, transparent);
+        box-shadow:
+            0 0 0 3px color-mix(in oklab, var(--color-signal-400) 24%, transparent),
+            0 0 22px -8px color-mix(in oklab, var(--color-signal-400) 60%, transparent),
+            inset 0 1px 0 0 color-mix(in oklab, #ffffff 6%, transparent);
+    }
+
+    .field:disabled,
+    .field[disabled] {
+        opacity: 0.55;
+        cursor: not-allowed;
+        background-image: none;
+        background-color: color-mix(in oklab, var(--color-ink-950) 80%, transparent);
+        color: var(--color-mist-500);
+    }
+
+    .field[aria-invalid='true'],
+    .field-error {
+        border-color: color-mix(in oklab, #e5484d 65%, var(--color-line));
+        box-shadow: 0 0 0 3px color-mix(in oklab, #e5484d 20%, transparent);
+    }
+
+    .field[aria-invalid='true']:focus,
+    .field-error:focus {
+        border-color: #ff7a8a;
+        box-shadow: 0 0 0 3px color-mix(in oklab, #e5484d 28%, transparent);
+    }
+
+    .field-hint {
+        margin-top: 0.4rem;
+        font-size: 0.8125rem;
+        line-height: 1.25rem;
+        color: var(--color-mist-500);
     }
 
     .field-label {
         display: block;
         font-size: 0.8125rem;
         font-weight: 500;
+        letter-spacing: 0.01em;
         color: var(--color-mist-300);
         margin-bottom: 0.375rem;
     }

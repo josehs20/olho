@@ -73,9 +73,16 @@
                     </p>
                 </div>
 
+                {{-- O erro do provedor aparece **acima** do botão: quando o PagBank
+                     recusa a cobrança, a página volta para cá e a mensagem precisa
+                     ser vista sem rolar — senão o clique parece não fazer nada. --}}
+                @error('payment')
+                    <x-alert tone="danger" class="mt-6">{{ $message }}</x-alert>
+                @enderror
+
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <p class="text-xs text-mist-500">
-                        {{ __('Ao continuar você será levado ao pagamento PIX. A consulta só é executada após a confirmação.') }}
+                        {{ __('Ao continuar você será levado ao pagamento. A consulta só é executada após a confirmação.') }}
                     </p>
 
                     <x-btn type="submit" variant="primary" size="lg" class="w-full sm:w-auto">
@@ -90,7 +97,7 @@
                 <p class="text-3xl font-semibold tabular-nums text-mist-50">
                     {{ __('R$') }} {{ number_format($price->price_cents / 100, 2, ',', '.') }}
                 </p>
-                <p class="mt-1 text-xs text-mist-400">{{ __('Pagamento único via PIX · sem assinatura · sem cadastro') }}</p>
+                <p class="mt-1 text-xs text-mist-400">{{ __('Pagamento único · sem assinatura · sem cadastro') }}</p>
                 <p class="mt-3 text-xs leading-relaxed text-mist-500">{{ __('O Olho está esperando a sua pista.') }}</p>
 
                 <ul class="mt-5 space-y-2.5 text-sm text-mist-300">

@@ -22,7 +22,7 @@ use App\Services\LogSanitizer;
 use App\Services\ReportManifestBuilder;
 use App\Services\ResultDeduplicator;
 use App\Services\SourceCache;
-use App\Services\SourceResultNormalizer;
+use App\Services\SourceOutcomePersister;
 use App\Sources\SourceRegistry;
 use App\Sources\SourceRunStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -111,7 +111,7 @@ class InvestigationPipelineTest extends TestCase
 
         $sourceRun = $run->sourceRuns()->first();
 
-        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceOutcomePersister::class), app(LogSanitizer::class));
 
         $sourceRun->refresh();
         $this->assertSame(SourceRunStatus::Completed->value, $sourceRun->status);
@@ -126,7 +126,7 @@ class InvestigationPipelineTest extends TestCase
 
         $sourceRun = $run->sourceRuns()->first();
 
-        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceOutcomePersister::class), app(LogSanitizer::class));
         $this->assertSame(2, $sourceRun->sourceResults()->count());
 
         // Worker interrompido antes de finalizar: a fonte fica presa em `running`.
@@ -135,7 +135,7 @@ class InvestigationPipelineTest extends TestCase
         $sourceRun->save();
 
         // O retry precisa reexecutar (e não acumular resultados duplicados).
-        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceOutcomePersister::class), app(LogSanitizer::class));
 
         $sourceRun->refresh();
         $this->assertSame(SourceRunStatus::Completed->value, $sourceRun->status);
@@ -149,7 +149,7 @@ class InvestigationPipelineTest extends TestCase
 
         $sourceRun = $run->sourceRuns()->first();
 
-        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceOutcomePersister::class), app(LogSanitizer::class));
 
         $sourceRun->refresh();
         $this->assertSame(SourceRunStatus::Timeout->value, $sourceRun->status);
@@ -173,7 +173,7 @@ class InvestigationPipelineTest extends TestCase
         (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
 
         foreach ($run->sourceRuns()->get() as $sourceRun) {
-            (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
+            (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceOutcomePersister::class), app(LogSanitizer::class));
         }
 
         $this->assertSame(SourceRunStatus::Failed->value, $run->sourceRuns()->where('source_definition_id', $usernameSource->id)->first()->status);
@@ -187,7 +187,7 @@ class InvestigationPipelineTest extends TestCase
         (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
 
         $sourceRun = $run->sourceRuns()->first();
-        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
+        (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceOutcomePersister::class), app(LogSanitizer::class));
 
         (new NormalizeSourceResultsJob($run->id))->handle(app(ResultDeduplicator::class));
         (new DeduplicateResultsJob($run->id))->handle(app(ResultDeduplicator::class));
@@ -245,7 +245,7 @@ class InvestigationPipelineTest extends TestCase
         (new StartInvestigationRunJob($run->id))->handle(app(CreditLedgerService::class), app(InvestigationOrchestrator::class), app(LogSanitizer::class));
 
         foreach ($run->sourceRuns()->get() as $sourceRun) {
-            (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceResultNormalizer::class), app(LogSanitizer::class));
+            (new ExecuteSourceJob($sourceRun->id))->handle(app(SourceRegistry::class), app(SourceCache::class), app(SourceOutcomePersister::class), app(LogSanitizer::class));
         }
 
         (new NormalizeSourceResultsJob($run->id))->handle(app(ResultDeduplicator::class));

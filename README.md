@@ -32,7 +32,7 @@ App em `http://localhost:8080` (porta configurável via `APP_PORT`). Healthcheck
 |---|---|
 | `app` | PHP-FPM (Laravel) |
 | `web` | Nginx |
-| `worker` | `queue:work redis` |
+| `worker` | `queue:work redis` (recicla a cada 1h ou 1000 jobs) |
 | `scheduler` | `schedule:work` |
 | `mysql` | Banco de dados |
 | `redis` | Cache + filas |
@@ -65,6 +65,11 @@ docker compose exec app php artisan db:seed --class=DemoDataSeeder
 
 # Fila (worker já roda em background)
 docker compose exec app php artisan queue:work --once
+
+# Fila com problema? (jobs parados, status PENDING eterno, worker sem log)
+docker compose exec app php artisan queue:monitor redis:default   # tamanho pendente/reservado
+docker compose restart worker                                     # relê .env/código e destrava
+docker compose exec app php artisan queue:failed                  # jobs que falharam
 
 # Admin inicial
 docker compose exec app php artisan app:create-admin --email=admin@example.com --password='senha-forte'

@@ -11,7 +11,7 @@ use App\Services\CreditLedgerService;
 use App\Services\InvestigationService;
 use App\Services\LogSanitizer;
 use App\Services\SourceCache;
-use App\Services\SourceResultNormalizer;
+use App\Services\SourceOutcomePersister;
 use App\Sources\SourceRegistry;
 use App\Sources\SourceRunStatus;
 use Database\Seeders\SourceDefinitionSeeder;
@@ -121,7 +121,7 @@ class SourceRunPersistenceTest extends TestCase
         (new ExecuteSourceJob($sourceRun->id))->handle(
             app(SourceRegistry::class),
             app(SourceCache::class),
-            app(SourceResultNormalizer::class),
+            app(SourceOutcomePersister::class),
             app(LogSanitizer::class),
         );
 

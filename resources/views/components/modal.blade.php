@@ -63,9 +63,14 @@ $maxWidth = [
         <div class="absolute inset-0 bg-ink-950/80 backdrop-blur-sm"></div>
     </div>
 
+    {{-- O painel precisa ficar ACIMA do backdrop. Os dois são irmãos e o backdrop
+         é `fixed`: sem posicionamento/z-index no painel, o backdrop (pintado na
+         fase dos posicionados) cobre o painel — no Tailwind v4 a classe `transform`
+         não gera transform algum (valor inválido), então ela não cria o stacking
+         context que o Breeze original assumia no v3. Regressão coberta por teste. --}}
     <div
         x-show="show"
-        class="mb-6 surface overflow-hidden transform transition-all sm:w-full {{ $maxWidth }} sm:mx-auto"
+        class="relative z-10 mb-6 surface overflow-hidden transform transition-all sm:w-full {{ $maxWidth }} sm:mx-auto"
         x-transition:enter="ease-out duration-300"
         x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"

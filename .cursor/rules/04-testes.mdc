@@ -11,4 +11,8 @@ Pirâmide:
 
 Cenários obrigatórios: saldo insuficiente; débito concorrente; webhook duplicado; pagamento confirmado duas vezes; job retry; source timeout/erro/sem resultados; resultado duplicado entre fontes; usuário abrindo investigação alheia; ajuste de crédito sem motivo; input malformado; upload inválido; HTML malicioso vindo da fonte.
 
-Ao final de cada etapa: `php artisan test` e `./vendor/bin/pint --test`.
+Ao final de cada etapa: verificações rápidas relacionadas à alteração (ver
+`05-fluxo-desenvolvimento-rapido.mdc`). A suíte completa (`php artisan test`) e o
+Pint (`./vendor/bin/pint --test`) entram na **validação final** ou quando o
+usuário solicitar explicitamente — não automaticamente a cada prompt. Não
+remover testes, não desativar PHPUnit, não remover E2E.
