@@ -8,6 +8,8 @@
 
         <title>{{ config('app.name', 'Investigação Pública') }}</title>
 
+        @include('partials.favicon')
+
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-ink-950 text-mist-100 antialiased">

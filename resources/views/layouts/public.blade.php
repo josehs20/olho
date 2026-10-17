@@ -8,6 +8,8 @@
 
         <title>{{ $attributes->get('title', config('app.name', 'Investigação Pública')) }}</title>
 
+        @include('partials.favicon')
+
         {{-- Head adicional da página (SEO/OG). Use @push('meta') na view chamadora;
              não passe HTML por atributo de componente: ele é escapado pelo
              compilador Blade e apareceria como texto puro na tela. --}}
