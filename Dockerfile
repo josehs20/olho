@@ -78,53 +78,51 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 
 # Porta padrão exposta pelo Docker
 EXPOSE 8080
-
-# Script de inicialização unificado (MySQL + Redis + PHP-FPM + Worker + Nginx)
+# Script de inicialização unificado corrigido para o boot
 RUN cat << "EOF" > /start.sh
 #!/bin/sh
 
 # 1. Mapear porta dinâmica do Railway no Nginx
 TARGET_PORT="${PORT:-8080}"
 sed -i "s/listen 80;/listen ${TARGET_PORT};/g" /etc/nginx/http.d/default.conf
-
-# 2. Direcionar o FastCGI do Nginx para o IP local do PHP-FPM
 sed -i "s/fastcgi_pass app:9000;/fastcgi_pass 127.0.0.1:9000;/g" /etc/nginx/http.d/default.conf
 
-# 3. Inicializar e subir o MariaDB/MySQL
+# 2. Inicializar diretório de dados do MySQL se não existir
 if [ ! -d "/var/lib/mysql/mysql" ]; then
     mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null 2>&1
 fi
 
-mysqld --user=mysql --bind-address=127.0.0.1 &
+# 3. Subir o MariaDB forçando a porta 3306 e IP local
+mysqld --user=mysql --bind-address=127.0.0.1 --port=3306 &
 
-echo "Aguardando MySQL/MariaDB aceitar conexões..."
-until php -r "try { new PDO('mysql:host=127.0.0.1;port=3306', 'root', ''); exit(0); } catch(Exception \$e) { exit(1); }" >/dev/null 2>&1; do
+echo "Aguardando MariaDB..."
+while ! mariadb-admin ping -h 127.0.0.1 --silent; do
     sleep 1
 done
 
-# 4. Criar Banco de Dados e Usuário com permissões
+# 4. Criar Banco de Dados e Usuário
 DB_NAME="${DB_DATABASE:-investigacao_publica}"
 DB_USER="${DB_USERNAME:-investigacao}"
 DB_PASS="${DB_PASSWORD:-secret}"
 
-mysql -u root -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;"
-mysql -u root -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
-mysql -u root -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';"
-mysql -u root -e "FLUSH PRIVILEGES;"
+mariadb -u root -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;"
+mariadb -u root -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
+mariadb -u root -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';"
+mariadb -u root -e "FLUSH PRIVILEGES;"
 
-# 5. Iniciar Redis em background
+# 5. Iniciar Redis
 redis-server --daemonize yes
 
-# 6. Iniciar PHP-FPM em background (essencial para evitar erro 502)
+# 6. Iniciar PHP-FPM
 php-fpm -D
 
-# 7. Rodar migrações do Laravel
+# 7. Rodar Migrações do Laravel
 php artisan migrate --force
 
-# 8. Iniciar Queue Worker em background para lidar com tarefas do Redis
+# 8. Iniciar Queue Worker
 php artisan queue:work redis --sleep=3 --tries=3 --timeout=90 > /dev/null 2>&1 &
 
-# 9. Iniciar Nginx em primeiro plano
+# 9. Iniciar Nginx
 nginx -g "daemon off;"
 EOF
 
