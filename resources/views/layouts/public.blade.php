@@ -23,7 +23,9 @@
         </a>
 
         <header class="sticky top-0 z-40 border-b border-line/80 bg-ink-950/85 backdrop-blur">
-            <nav class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8" aria-label="{{ __('Navegação principal') }}">
+            {{-- `px-3`/`gap-3` em telas muito estreitas (≤320px): com `px-4`/`gap-4`
+                 o rótulo do CTA quebrava em duas linhas dentro do botão. --}}
+            <nav class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-3 sm:gap-4 sm:px-6 lg:px-8" aria-label="{{ __('Navegação principal') }}">
                 <a href="{{ route('home') }}" class="flex shrink-0 items-center gap-2.5">
                     <x-application-logo class="h-8 w-8 text-mist-300" />
                     <span class="text-sm font-semibold tracking-tight text-mist-50">{{ config('app.name', 'Investigação Pública') }}</span>
@@ -38,12 +40,12 @@
 
                 <div class="flex items-center gap-2 sm:gap-3">
                     @auth
-                        <x-btn href="{{ route('dashboard') }}" variant="ghost" size="sm">{{ __('Painel') }}</x-btn>
+                        <x-btn href="{{ route('dashboard') }}" variant="ghost" size="sm" class="whitespace-nowrap">{{ __('Painel') }}</x-btn>
                     @else
-                        <x-btn href="{{ route('login') }}" variant="ghost" size="sm">{{ __('Entrar') }}</x-btn>
+                        <x-btn href="{{ route('login') }}" variant="ghost" size="sm" class="whitespace-nowrap">{{ __('Entrar') }}</x-btn>
                     @endauth
 
-                    <x-btn href="{{ route('guest.investigations.create') }}" variant="primary" size="sm">
+                    <x-btn href="{{ route('guest.investigations.create') }}" variant="primary" size="sm" class="whitespace-nowrap">
                         {{ __('Investigar agora') }}
                     </x-btn>
                 </div>

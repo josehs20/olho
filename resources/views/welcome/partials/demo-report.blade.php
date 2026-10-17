@@ -43,7 +43,7 @@
     ];
 @endphp
 
-<div class="relative animate-rise" style="animation-delay: 120ms">
+<div class="relative min-w-0 animate-rise" style="animation-delay: 120ms">
     <div class="surface relative overflow-hidden p-5 sm:p-6">
         <div class="flex items-center justify-between gap-3">
             <p class="eyebrow">{{ __('Exemplo de relatório') }}</p>
@@ -56,7 +56,9 @@
 
         <div class="mt-5 flex flex-wrap gap-2">
             @foreach ($trustBadges as $badge)
-                <x-badge tone="signal">
+                {{-- `whitespace-normal`: a classe `.badge` é nowrap; em telas
+                     estreitas o texto precisa quebrar em vez de alargar o card. --}}
+                <x-badge tone="signal" class="whitespace-normal">
                     <span class="inline-flex items-center gap-1.5">
                         <span aria-hidden="true">✓</span>{{ $badge }}
                     </span>
@@ -100,9 +102,11 @@
 
         {{-- Amostra de evidência + sinal de correlação. --}}
         <div class="mt-5 rounded-xl border border-line bg-ink-950/60 p-4">
-            <div class="flex items-center justify-between gap-3">
+            {{-- Linha com quebra: o badge longo era o principal responsável por
+                 estourar a largura do grid no mobile (`.badge` é nowrap). --}}
+            <div class="flex flex-wrap items-center justify-between gap-2">
                 <p class="text-[0.6875rem] font-semibold uppercase tracking-wider text-mist-500">{{ __('Sinal de correlação') }}</p>
-                <x-badge tone="success">{{ __('correspondência forte por sinais públicos') }}</x-badge>
+                <x-badge tone="success" class="whitespace-normal">{{ __('correspondência forte por sinais públicos') }}</x-badge>
             </div>
 
             <ul class="mt-3 space-y-2 text-xs text-mist-400">

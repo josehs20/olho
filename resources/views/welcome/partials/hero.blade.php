@@ -15,8 +15,12 @@
     <div class="pointer-events-none absolute inset-0 hud-grid opacity-50" aria-hidden="true"></div>
 
     <div class="relative mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+        {{-- `min-w-0` nas colunas: sem isso, conteúdo com `white-space: nowrap`
+             (badges longos do preview) impõe o min-content ao grid e a coluna
+             cresce além da viewport — o `overflow-hidden` da seção então corta
+             o texto e o formulário no celular. --}}
         <div class="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
-            <div class="animate-rise">
+            <div class="animate-rise min-w-0">
                 <p class="eyebrow">{{ __('OLHO · investigação de presença digital') }}</p>
 
                 <h1 class="mt-4 text-4xl font-semibold leading-[1.05] tracking-tight text-mist-50 sm:text-5xl lg:text-6xl">
@@ -71,7 +75,9 @@
                     </div>
 
                     <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="flex items-center gap-3 text-mist-400">
+                        {{-- `flex-wrap`: em telas estreitas (≤360px) ícones + texto
+                             não cabem em uma linha e vazariam do formulário. --}}
+                        <div class="flex flex-wrap items-center gap-3 text-mist-400">
                             @foreach ($socialIcons as $icon)
                                 <span class="transition hover:text-signal-300" title="{{ __($icon) }}">
                                     <x-social-icon :name="$icon" />
