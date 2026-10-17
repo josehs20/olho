@@ -73,10 +73,8 @@ EXPOSE 8080
 
 # Script de inicialização para rodar Nginx e PHP-FPM simultaneamente
 RUN echo '#!/bin/sh' > /start.sh \
-    && echo 'sed -i "s/listen = 9000/listen = 127.0.0.1:9000/g" /usr/local/etc/php-fpm.d/www.conf' >> /start.sh \
-    && echo 'sed -i "s/80/${PORT:-8080}/g" /etc/nginx/http.d/default.conf' >> /start.sh \
+    && echo 'sed -i "s/listen 80;/listen ${PORT:-8080};/g" /etc/nginx/http.d/default.conf' >> /start.sh \
     && echo 'php-fpm -D' >> /start.sh \
     && echo 'nginx -g "daemon off;"' >> /start.sh \
     && chmod +x /start.sh
-
 CMD ["/start.sh"]
