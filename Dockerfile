@@ -6,7 +6,7 @@ FROM composer:2 AS composer
 
 FROM php:8.5-fpm-alpine
 
-# Instalar Nginx, MariaDB (MySQL), Redis, Python e dependências do sistema
+# Instalar Nginx, MariaDB (MySQL), Redis, Python, Node.js, NPM e dependências do sistema
 RUN apk add --no-cache \
         nginx \
         mysql \
@@ -19,6 +19,8 @@ RUN apk add --no-cache \
         libzip-dev \
         python3 \
         py3-pip \
+        nodejs \
+        npm \
         $PHPIZE_DEPS
 
 # Configurar extensões PHP
@@ -68,6 +70,9 @@ RUN [ -f .env ] || cp .env.example .env
 # Instalar dependências do Composer
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
+# Instalar dependências JS e compilar o manifesto do Vite (Fix ViteManifestNotFoundException)
+RUN if [ -f package.json ]; then npm ci || npm install; npm run build; fi
+
 # Copiar configuração customizada do Nginx para o diretório padrão do Alpine
 COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
 
@@ -78,7 +83,8 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 
 # Porta padrão exposta
 EXPOSE 8080
-# Script de inicialização unificado corrigido
+
+# Script de inicialização unificado
 RUN cat << "EOF" > /start.sh
 #!/bin/sh
 
@@ -87,12 +93,12 @@ TARGET_PORT="${PORT:-8080}"
 sed -i "s/listen 80;/listen ${TARGET_PORT};/g" /etc/nginx/http.d/default.conf
 sed -i "s/fastcgi_pass app:9000;/fastcgi_pass 127.0.0.1:9000;/g" /etc/nginx/http.d/default.conf
 
-# 2. Inicializar diretório de dados do MariaDB/MySQL se necessário
+# 2. Inicializar diretório de dados do MariaDB se necessário
 if [ ! -d "/var/lib/mysql/mysql" ]; then
     mariadb-install-db --user=mysql --datadir=/var/lib/mysql > /dev/null 2>&1
 fi
 
-# 3. Subir o MariaDB forçando escuta na rede TCP e socket Unix
+# 3. Subir MariaDB
 mariadbd --user=mysql --bind-address=0.0.0.0 --port=3306 --skip-networking=0 &
 
 echo "Aguardando MariaDB..."
@@ -100,7 +106,7 @@ while ! mariadb-admin ping --socket=/run/mysqld/mysqld.sock --silent; do
     sleep 1
 done
 
-# 4. Definir credenciais e criar banco/usuário de forma segura para localhost e 127.0.0.1
+# 4. Criar Banco de Dados e Usuário
 DB_NAME="${DB_DATABASE:-investigacao_publica}"
 DB_USER="${DB_USERNAME:-investigacao}"
 DB_PASS="${DB_PASSWORD:-secret}"
@@ -117,16 +123,20 @@ MYSQL_SCRIPT
 # 5. Iniciar Redis
 redis-server --daemonize yes
 
-# 6. Iniciar PHP-FPM em background
+# 6. Garantir permissões de escrita para a web no storage e bootstrap/cache
+chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+# 7. Iniciar PHP-FPM em background
 php-fpm -D
 
-# 7. Executar migrações do Laravel
+# 8. Executar migrações do Laravel
 php artisan migrate --force
 
-# 8. Iniciar Queue Worker em background
+# 9. Iniciar Queue Worker
 php artisan queue:work redis --sleep=3 --tries=3 --timeout=90 > /dev/null 2>&1 &
 
-# 9. Iniciar Nginx em primeiro plano (mantém o container vivo)
+# 10. Iniciar Nginx
 nginx -g "daemon off;"
 EOF
 
