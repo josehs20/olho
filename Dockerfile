@@ -6,7 +6,7 @@ FROM composer:2 AS composer
 
 FROM php:8.5-fpm-alpine
 
-# Instalar Nginx, MySQL, Redis, Python e dependências do sistema
+# Instalar Nginx, MariaDB (MySQL), Redis, Python e dependências do sistema
 RUN apk add --no-cache \
         nginx \
         mysql \
@@ -76,30 +76,33 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
     && mkdir -p /var/run/mysqld /var/lib/mysql \
     && chown -R mysql:mysql /var/run/mysqld /var/lib/mysql
 
-# Porta padrão exposta (o script substitui dinamicamente pela porta do Railway)
+# Porta padrão exposta pelo Docker
 EXPOSE 8080
+
 # Script de inicialização unificado (MySQL + Redis + PHP-FPM + Worker + Nginx)
 RUN cat << "EOF" > /start.sh
 #!/bin/sh
 
-# 1. Ajustar a porta dinâmica do Railway no Nginx no boot (fallback para 8080)
+# 1. Mapear porta dinâmica do Railway no Nginx
 TARGET_PORT="${PORT:-8080}"
 sed -i "s/listen 80;/listen ${TARGET_PORT};/g" /etc/nginx/http.d/default.conf
 
-# 2. Ajustar o FastCGI para falar com o PHP-FPM via IP local
+# 2. Direcionar o FastCGI do Nginx para o IP local do PHP-FPM
 sed -i "s/fastcgi_pass app:9000;/fastcgi_pass 127.0.0.1:9000;/g" /etc/nginx/http.d/default.conf
 
-# 3. Inicializar e subir o MySQL
+# 3. Inicializar e subir o MariaDB/MySQL
 if [ ! -d "/var/lib/mysql/mysql" ]; then
     mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null 2>&1
 fi
+
 mysqld --user=mysql --bind-address=127.0.0.1 &
-echo "Aguardando MySQL..."
-while ! mysqladmin ping -h 127.0.0.1 --silent; do
+
+echo "Aguardando MySQL/MariaDB aceitar conexões..."
+until php -r "try { new PDO('mysql:host=127.0.0.1;port=3306', 'root', ''); exit(0); } catch(Exception \$e) { exit(1); }" >/dev/null 2>&1; do
     sleep 1
 done
 
-# 4. Criar Banco de Dados e Usuário
+# 4. Criar Banco de Dados e Usuário com permissões
 DB_NAME="${DB_DATABASE:-investigacao_publica}"
 DB_USER="${DB_USERNAME:-investigacao}"
 DB_PASS="${DB_PASSWORD:-secret}"
@@ -109,16 +112,16 @@ mysql -u root -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED 
 mysql -u root -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';"
 mysql -u root -e "FLUSH PRIVILEGES;"
 
-# 5. Iniciar Redis
+# 5. Iniciar Redis em background
 redis-server --daemonize yes
 
-# 6. Rodar Migrações
-php artisan migrate --force
-
-# 7. Iniciar PHP-FPM em background
+# 6. Iniciar PHP-FPM em background (essencial para evitar erro 502)
 php-fpm -D
 
-# 8. Iniciar Queue Worker do Laravel
+# 7. Rodar migrações do Laravel
+php artisan migrate --force
+
+# 8. Iniciar Queue Worker em background para lidar com tarefas do Redis
 php artisan queue:work redis --sleep=3 --tries=3 --timeout=90 > /dev/null 2>&1 &
 
 # 9. Iniciar Nginx em primeiro plano
