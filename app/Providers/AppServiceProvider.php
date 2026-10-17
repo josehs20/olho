@@ -180,7 +180,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if ($this->app->environment('production') || env('FORCE_HTTPS', false)) {
+        if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
         // Datas relativas (diffForHumans) e formatações seguem o idioma da aplicação.
