@@ -78,30 +78,28 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 
 # Porta padrão exposta (o script substitui dinamicamente pela porta do Railway)
 EXPOSE 8080
-
-# Script de inicialização unificado limpo usando Heredoc
-RUN cat << 'EOF' > /start.sh
+# Script de inicialização unificado (MySQL + Redis + PHP-FPM + Worker + Nginx)
+RUN cat << "EOF" > /start.sh
 #!/bin/sh
 
-# 1. Configurar porta dinâmica do Nginx
-sed -i "s/listen 80;/listen $PORT;/g" /etc/nginx/http.d/default.conf
+# 1. Ajustar a porta dinâmica do Railway no Nginx no boot (fallback para 8080)
+TARGET_PORT="${PORT:-8080}"
+sed -i "s/listen 80;/listen ${TARGET_PORT};/g" /etc/nginx/http.d/default.conf
 
-# 2. Ajustar FastCGI para o PHP-FPM local
+# 2. Ajustar o FastCGI para falar com o PHP-FPM via IP local
 sed -i "s/fastcgi_pass app:9000;/fastcgi_pass 127.0.0.1:9000;/g" /etc/nginx/http.d/default.conf
 
-# 3. Inicializar banco de dados MySQL local se não estiver inicializado
+# 3. Inicializar e subir o MySQL
 if [ ! -d "/var/lib/mysql/mysql" ]; then
-    mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null
+    mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null 2>&1
 fi
-
-# 4. Iniciar o MySQL em background
 mysqld --user=mysql --bind-address=127.0.0.1 &
-echo "Aguardando o MySQL iniciar..."
+echo "Aguardando MySQL..."
 while ! mysqladmin ping -h 127.0.0.1 --silent; do
     sleep 1
 done
 
-# 5. Criar banco de dados e usuário se necessário
+# 4. Criar Banco de Dados e Usuário
 DB_NAME="${DB_DATABASE:-investigacao_publica}"
 DB_USER="${DB_USERNAME:-investigacao}"
 DB_PASS="${DB_PASSWORD:-secret}"
@@ -111,19 +109,19 @@ mysql -u root -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED 
 mysql -u root -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';"
 mysql -u root -e "FLUSH PRIVILEGES;"
 
-# 6. Iniciar Redis em background
+# 5. Iniciar Redis
 redis-server --daemonize yes
 
-# 7. Executar migrações do Laravel automaticamente no boot
+# 6. Rodar Migrações
 php artisan migrate --force
 
-# 8. Iniciar PHP-FPM em background
+# 7. Iniciar PHP-FPM em background
 php-fpm -D
 
-# 9. Iniciar Laravel Queue Worker em background
+# 8. Iniciar Queue Worker do Laravel
 php artisan queue:work redis --sleep=3 --tries=3 --timeout=90 > /dev/null 2>&1 &
 
-# 10. Iniciar Nginx em primeiro plano (mantém o container ativo)
+# 9. Iniciar Nginx em primeiro plano
 nginx -g "daemon off;"
 EOF
 
