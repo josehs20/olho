@@ -15,6 +15,18 @@
   <div class="mx-auto max-w-2xl sm:px-6 lg:px-8">
   <div class="overflow-hidden surface">
    <div class="p-6">
+    @if (session('status'))
+     <x-alert tone="success" class="mb-4">{{ session('status') === 'paid' ? __('Pagamento confirmado. Créditos adicionados à sua carteira.') : session('status') }}</x-alert>
+    @endif
+
+    @if (session('warning'))
+     <x-alert tone="warning" class="mb-4">{{ session('warning') }}</x-alert>
+    @endif
+
+    @if (session('error'))
+     <x-alert tone="danger" class="mb-4">{{ session('error') }}</x-alert>
+    @endif
+
     <div class="flex flex-wrap items-center justify-between gap-3">
     <h3 class="text-lg font-semibold text-mist-100">{{ __('Pedido') }} #{{ $payment->id }}</h3>
     <x-status-badge :status="$payment->status" />
@@ -69,6 +81,16 @@
      </form>
      @endif
     </div>
+    @endif
+
+    {{-- Fallback quando a notificação do PagBank não chega: o comprador pede a
+         verificação e o servidor consulta o provedor antes de liberar. --}}
+    @if (! $isPaid && ! $isFake)
+    <form method="POST" action="{{ route('payments.verify', $payment) }}" class="mt-5">
+     @csrf
+     <x-btn type="submit" variant="outline" class="w-full">{{ __('JÁ PAGUEI — VERIFICAR AGORA') }}</x-btn>
+     <p class="mt-2 text-center text-[0.6875rem] text-mist-500">{{ __('Consulta o PagBank na hora: se o pagamento já foi aprovado, os créditos entram na sua carteira.') }}</p>
+    </form>
     @endif
 
     <a href="{{ route('payments.index') }}" class="mt-6 inline-block text-sm text-mist-300 hover:text-mist-100">

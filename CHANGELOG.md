@@ -932,3 +932,45 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
   varredura agendada (cron) dos pendentes e alarme de pedido parado — o worker
   disparado pelo próprio webhook (e pelos botões) cobre o caminho principal.
 
+## Etapa 48 — "Já paguei" e prontidão para produção (PagBank)
+
+- **Botão "Já paguei — verificar agora"** nos dois fluxos: conta
+  (`POST /payments/{payment}/verify`, rota `payments.verify`, dono do pedido) e
+  avulsa (`POST /investigacao/acesso/{token}/pagamento/verificar`, rota
+  `guest.payments.verify`, token como credencial). O clique **não envia status**:
+  o servidor chama `PaymentService::reconcile()` (consulta zero-trust ao PagBank)
+  e só então `confirmPayment()` libera créditos ou
+  `GuestInvestigationService::release()`. Serve para webhook que não chegou
+  (endereço público ainda não publicado, reentrega perdida) e para quem não quer
+  esperar o polling. Duplo clique/webhook posterior são idempotentes.
+- **Limites por consulta externa**: `payment-verify` (6/min por usuário, 3/min
+  por pedido) e `guest-verify` (6/min por IP, 4/min por token, 20/h por token) —
+  cada clique é uma chamada à API do provedor.
+- **Custo do polling**: `PaymentController::status()` passou a usar
+  `PaymentService::reconcileThrottled()` — no máximo uma consulta ao PagBank a
+  cada `payments.reconcile_cooldown_seconds`
+  (`PAYMENT_RECONCILE_COOLDOWN_SECONDS`, 20s por padrão) por pedido; dentro da
+  janela o endpoint lê apenas o banco. O endpoint de status da avulsa continua
+  **sem** consultar o provedor. **Nenhuma varredura agendada** foi adicionada
+  (decisão de custo); a confirmação fica com webhook, retorno assinado,
+  "Já paguei" e a revalidação manual do painel.
+- **UX**: flash de sucesso/aviso/erro na página do pedido e na página pública da
+  avulsa (antes o "Já paguei" não teria onde mostrar o resultado); mensagens
+  distintas para confirmado, ainda aguardando e falha de consulta.
+- **Produção (documentação e limpeza)**: novo runbook
+  `docs/42-pagbank-producao.md` com os três pré-requisitos (homologação da conta
+  via Pipefy, `APP_URL` HTTPS/`TrustProxies`, chave pública do webhook em
+  produção via `POST /public-keys {"type":"webhook"}`), passo a passo de subida,
+  roteiro de validação com PIX de R$ 1 (conta e avulsa), tabela de quem confirma
+  o quê, custos e troubleshooting. `docs/07-pagamentos.md` e
+  `docs/40-pagbank-configuravel.md` apontam para o runbook. Removidos os `dd()`
+  comentados de `PagBankClient` e do teste de conexão do painel.
+- **Testes**: `tests/Feature/PaymentVerifyTest.php` (8 cenários: confirma e
+  credita uma única vez, pendente não libera, falha do provedor não libera,
+  pedido de terceiro `403`, avulsa paga libera e não reexecuta, avulsa pendente
+  não libera, provider fake não confirma, polling consulta o provedor no máximo
+  uma vez por janela). Suíte relacionada: 96 testes verdes.
+- **Fora de escopo (mantido)**: persistir `expired`/`cancelled` de todos os
+  eventos, alerta de pedido parado e cache da chave pública do webhook.
+
+

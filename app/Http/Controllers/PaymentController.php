@@ -15,6 +15,7 @@ use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -107,22 +108,69 @@ class PaymentController extends Controller
      * Estado atual do pedido em JSON — usado pela página do pedido enquanto o
      * comprador espera a confirmação.
      *
-     * Reaproveita a reconciliação (sempre reconsulta o provedor) e por isso também
-     * confirma o pagamento quando a notificação não chega. Nada é liberado aqui:
-     * os créditos continuam sendo creditados uma única vez pela reconciliação.
+     * Reaproveita a reconciliação (reconsulta o provedor no máximo uma vez por
+     * janela) e por isso também confirma o pagamento quando a notificação não
+     * chega. Nada é liberado aqui: os créditos continuam sendo creditados uma
+     * única vez pela reconciliação.
      */
     public function status(Request $request, Payment $payment): JsonResponse
     {
         $this->ensureAccountOwnership($request->user(), $payment);
 
         try {
-            $this->payments->reconcile($payment);
+            $this->payments->reconcileThrottled($payment);
             $payment->refresh();
         } catch (\Throwable) {
             // Provedor indisponível: vale o último estado persistido.
         }
 
         return response()->json(['payment' => $this->paymentPayload($payment)]);
+    }
+
+    /**
+     * "Já paguei": consulta o PagBank agora, por decisão do comprador.
+     *
+     * Fallback quando a notificação do provedor não chega (webhook perdido,
+     * endereço público ainda não publicado) e atalho para quem não quer esperar
+     * o polling. A confirmação continua sendo a de `reconcile()`: idempotente,
+     * baseada apenas na resposta do provedor — o clique não informa nada além
+     * do pedido que a sessão já autoriza.
+     */
+    public function verify(Request $request, Payment $payment): RedirectResponse
+    {
+        $this->ensureAccountOwnership($request->user(), $payment);
+
+        if ($payment->status === PaymentStatus::Paid->value) {
+            return redirect()->route('payments.show', $payment)
+                ->with('status', __('Pagamento já confirmado. Créditos adicionados à sua carteira.'));
+        }
+
+        if ($payment->provider === PaymentSettings::PROVIDER_FAKE || $payment->external_id === null) {
+            return redirect()->route('payments.show', $payment)
+                ->with('error', __('Este pedido ainda não tem uma cobrança no PagBank para consultar. Recarregue a página.'));
+        }
+
+        try {
+            $this->payments->reconcile($payment);
+            $payment->refresh();
+        } catch (\Throwable $exception) {
+            Log::warning('payment.verify.failed', [
+                'payment_id' => $payment->id,
+                'provider' => $payment->provider,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return redirect()->route('payments.show', $payment)
+                ->with('error', __('Não foi possível consultar o PagBank agora. Tente novamente em instantes.'));
+        }
+
+        if ($payment->status === PaymentStatus::Paid->value) {
+            return redirect()->route('payments.show', $payment)
+                ->with('status', __('Pagamento confirmado. Créditos adicionados à sua carteira.'));
+        }
+
+        return redirect()->route('payments.show', $payment)
+            ->with('warning', __('Ainda não identificamos o pagamento. Se você acabou de pagar, aguarde alguns instantes e verifique de novo.'));
     }
 
     /**

@@ -21,6 +21,7 @@ use App\Payments\PaymentStatus;
 use App\Payments\PaymentUnavailableException;
 use App\Payments\VerifiedPaymentEvent;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -408,6 +409,36 @@ class PaymentService
         ));
 
         return $status;
+    }
+
+    /**
+     * Reconciliação do polling da página, com janela mínima entre consultas.
+     *
+     * A página do pedido consulta o estado a cada 5s. Reconsultar o provedor em
+     * cada volta multiplicaria chamadas da API por comprador sem ganho real: o
+     * webhook continua sendo o gatilho normal e o botão "Já paguei" consulta na
+     * hora, sem janela. Aqui a consulta é feita no máximo uma vez por
+     * `payments.reconcile_cooldown_seconds`; dentro da janela vale o estado
+     * persistido (que o webhook/worker mantém atualizado).
+     */
+    public function reconcileThrottled(Payment $payment, ?int $seconds = null): PaymentStatus
+    {
+        if ($payment->status !== PaymentStatus::AwaitingPayment->value) {
+            return PaymentStatus::from($payment->status);
+        }
+
+        $seconds = max(1, $seconds ?? (int) config('payments.reconcile_cooldown_seconds', 20));
+
+        try {
+            // `add` é atômico: só quem chega primeiro consulta o provedor.
+            if (! Cache::add('payment:reconcile:'.$payment->getKey(), true, $seconds)) {
+                return PaymentStatus::from($payment->status);
+            }
+        } catch (\Throwable) {
+            // Cache indisponível não pode impedir a confirmação: reconsulta.
+        }
+
+        return $this->reconcile($payment);
     }
 
     /**

@@ -216,5 +216,30 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(30)->by('admin-sync-user:'.($request->user()?->id ?? 'guest')),
             Limit::perHour(300)->by('admin-sync-hour:'.($request->user()?->id ?? 'guest')),
         ]);
+
+        // "Já paguei" (conta): cada clique reconsulta o PagBank. O limite por
+        // pedido evita que várias abas/duplo clique multipliquem chamadas; o
+        // limite por usuário segura rajadas sem impedir a tentativa legítima.
+        RateLimiter::for('payment-verify', function (Request $request) {
+            $payment = $request->route('payment');
+            $paymentId = is_object($payment) ? $payment->getKey() : $payment;
+
+            return [
+                Limit::perMinute(6)->by('payment-verify-user:'.($request->user()?->id ?? 'guest')),
+                Limit::perMinute(3)->by('payment-verify-order:'.$paymentId),
+            ];
+        });
+
+        // "Já paguei" (avulsa): mesma consulta externa, sem sessão autenticada.
+        // O token é a credencial; o limite por hash evita varredura de pedidos.
+        RateLimiter::for('guest-verify', function (Request $request) {
+            $token = hash('sha256', (string) $request->route('token'));
+
+            return [
+                Limit::perMinute(6)->by('guest-verify-ip:'.$request->ip()),
+                Limit::perMinute(4)->by('guest-verify-token:'.$token),
+                Limit::perHour(20)->by('guest-verify-hour:'.$token),
+            ];
+        });
     }
 }

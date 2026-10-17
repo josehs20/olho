@@ -13,6 +13,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Intervalo mínimo entre consultas de status (segundos)
+    |--------------------------------------------------------------------------
+    | O polling da página do pedido reconsulta o provedor no máximo uma vez a
+    | cada janela, para não multiplicar chamadas da API por comprador. O botão
+    | "Já paguei", o retorno do checkout e a confirmação pelo webhook não
+    | respeitam a janela: consultam/liberam na hora.
+    */
+    'reconcile_cooldown_seconds' => (int) env('PAYMENT_RECONCILE_COOLDOWN_SECONDS', 20),
+
+    /*
+    |--------------------------------------------------------------------------
     | Defaults das configurações administrativas
     |--------------------------------------------------------------------------
     | Usados quando a respectiva chave ainda não foi salva em `settings`.

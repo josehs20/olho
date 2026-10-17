@@ -62,5 +62,15 @@
                 @endif
             </div>
         @endif
+
+        {{-- Fallback explícito para o webhook que não chega: o visitante pede a
+             verificação e o servidor consulta o PagBank antes de liberar. --}}
+        @if (! $isFake && ! $isExpired)
+            <form method="POST" action="{{ route('guest.payments.verify', ['token' => $token]) }}" class="mt-4">
+                @csrf
+                <x-btn type="submit" variant="outline" class="w-full">{{ __('JÁ PAGUEI — VERIFICAR AGORA') }}</x-btn>
+                <p class="mt-2 text-center text-[0.6875rem] text-mist-500">{{ __('Consulta o PagBank na hora: se o pagamento já foi aprovado, a investigação é liberada.') }}</p>
+            </form>
+        @endif
     @endif
 </x-card>

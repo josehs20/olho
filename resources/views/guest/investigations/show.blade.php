@@ -84,6 +84,14 @@
         <x-alert tone="success" class="mb-6">{{ session('status') }}</x-alert>
     @endif
 
+    @if (session('warning'))
+        <x-alert tone="warning" class="mb-6">{{ session('warning') }}</x-alert>
+    @endif
+
+    @if (session('error'))
+        <x-alert tone="danger" class="mb-6">{{ session('error') }}</x-alert>
+    @endif
+
     <div class="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
         <div class="space-y-6">
             @include('guest.investigations.partials.payment')

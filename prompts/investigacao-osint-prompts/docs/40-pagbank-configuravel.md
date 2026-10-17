@@ -161,6 +161,16 @@ pública e sem sessão):
   agenda `ReconcilePaymentJob` — a verificação roda no worker e libera o pedido
   pelo mesmo `reconcile()` idempotente. É a seção seguinte; o painel tem o botão
   **Revalidar** para o mesmo caminho por decisão do operador.
+- **Confirmação sob demanda ("Já paguei", etapa 48)**: além do retorno do
+  checkout, o comprador pode pedir a consulta na hora — `payments.verify` (conta)
+  e `guest.payments.verify` (avulsa, token como credencial). Reusa `reconcile()`
+  e `confirmPayment()`; as rotas são `POST` com CSRF e rate limit por
+  usuário/pedido e por IP/token. O polling da página do pedido reconsulta o
+  provedor no máximo uma vez a cada `payments.reconcile_cooldown_seconds`
+  (20s por padrão); a avulsa só consulta no clique. **Não existe varredura
+  agendada** de pendentes — decisão de custo. Runbook de subida em
+  `docs/42-pagbank-producao.md`.
+
 
 - **Método de pagamento**: `payment_method.type` da cobrança é traduzido por
   `PaymentMethod::fromPagBank()` e gravado em `payments.method` no momento da

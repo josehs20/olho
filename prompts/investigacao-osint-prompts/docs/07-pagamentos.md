@@ -107,3 +107,36 @@ status ainda aguardando), `PaymentService::handleWebhook()` agenda
 investigação avulsa pelo mesmo caminho idempotente do webhook — e o painel
 `/admin/payments` tem o botão **Revalidar** (por pedido) e **Revalidar
 pendentes** (em lote) para acionar essa verificação manualmente.
+
+## Confirmação sob demanda: "Já paguei" (etapa 48)
+
+O webhook é **aceleração**, não a fonte de verdade: a confirmação sempre vem da
+consulta ao PagBank. Por isso o comprador também pode pedir a verificação na
+hora, sem esperar notificação nem abrir chamado:
+
+- **Conta**: `POST /payments/{payment}/verify` (`payments.verify`) na página do
+  pedido — botão **JÁ PAGUEI — VERIFICAR AGORA**.
+- **Avulsa**: `POST /investigacao/acesso/{token}/pagamento/verificar`
+  (`guest.payments.verify`) na página de acompanhamento — o token continua sendo
+  a única credencial.
+- O clique não envia status nenhum: o servidor chama `PaymentService::reconcile()`
+  (mesma consulta zero-trust do webhook), confirma com `confirmPayment()` e
+  libera créditos ou `GuestInvestigationService::release()`. Toda a cadeia é
+  idempotente, então duplo clique/webhook posterior não duplicam nada.
+- As rotas são `POST` com CSRF, limitadas por usuário/pedido (conta) e por
+  IP/token (avulsa), porque cada clique é uma chamada à API do provedor.
+- Estados possíveis do retorno: confirmado (sucesso), ainda aguardando (aviso,
+  com instrução para tentar de novo) e falha de consulta (erro, sem liberar
+  nada). O pedido de outro usuário responde `403`; a avulsa com provedor fake
+  responde `404` (não existe confirmação sem cobrança real).
+- **Polling com janela**: a página do pedido reconsulta o provedor no máximo uma
+  vez a cada `PAYMENT_RECONCILE_COOLDOWN_SECONDS` (20s por padrão); dentro da
+  janela o endpoint de status lê apenas o banco. A avulsa nem consulta o
+  provedor no polling — só o botão "Já paguei" consulta.
+
+**Não há cron/varredura de pendentes** (decisão de custo): quem garante a
+liberação é o webhook, o retorno assinado do checkout, o botão "Já paguei" e a
+revalidação manual no painel. O runbook de produção — homologação da conta,
+HTTPS/`APP_URL`, chave pública do webhook e roteiro de PIX de R$ 1 — está em
+`docs/42-pagbank-producao.md`.
+

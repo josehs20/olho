@@ -97,3 +97,24 @@ Situação após a etapa 40 (auditoria E2E real):
 - **Testes**: 301 passando + 5 ignorados; Pint PASS (256 arquivos).
 - Relatório da etapa: `docs/36-e2e-real-auditoria.md`.
 
+## Atualização — etapa 48 (PagBank pronto para produção)
+
+- **Confirmação sob demanda**: botão **"Já paguei — verificar agora"** na página
+  do pedido (conta) e na página pública da avulsa. Cada clique consulta o PagBank
+  (`PaymentService::reconcile()`) e só libera créditos/investigação quando o
+  provedor confirma; rotas `POST` com CSRF e rate limit por usuário/pedido e por
+  IP/token. Cobre o webhook que não chega e evita espera no polling.
+- **Custo**: nenhuma varredura agendada; o polling da página do pedido reconsulta
+  o provedor no máximo uma vez a cada 20s por pedido
+  (`PAYMENT_RECONCILE_COOLDOWN_SECONDS`). O status da avulsa não consulta a API.
+- **Produção**: três pendências operacionais (não de código) documentadas em
+  `docs/42-pagbank-producao.md` — homologação da conta (Pipefy), `APP_URL` HTTPS
+  público (com proxy confiável) e chave pública do webhook de produção. Inclui
+  roteiro de validação com PIX de R$ 1, conferência de `payment_events`,
+  `paid_at`, ledger e liberação da avulsa, além de troubleshooting.
+- **Testes**: +8 em `tests/Feature/PaymentVerifyTest.php`; 96 testes da área de
+  pagamentos/avulsa verdes após a mudança.
+- **Pendências mantidas**: persistir `expired`/`cancelled` de todos os eventos,
+  alerta automático de pedido parado e cache da chave pública do webhook.
+
+

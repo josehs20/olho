@@ -123,6 +123,11 @@ Route::middleware('auth')->group(function () {
     // estado atual do pedido. Nada é liberado aqui — a confirmação continua
     // sendo idempotente e baseada apenas na resposta do provedor.
     Route::get('/payments/{payment}/status', [PaymentController::class, 'status'])->middleware('throttle:60,1')->name('payments.status');
+    // "Já paguei": o comprador pede a verificação agora e o servidor consulta o
+    // provedor antes de liberar qualquer crédito (idempotente; também cobre o
+    // webhook que não chegou). Cada clique gasta uma consulta à API: limitado.
+    Route::post('/payments/{payment}/verify', [PaymentController::class, 'verify'])
+        ->middleware('throttle:payment-verify')->name('payments.verify');
     Route::post('/payments/{payment}/simulate', [PaymentController::class, 'simulate'])->name('payments.simulate');
 
     Route::get('/investigations', [InvestigationController::class, 'index'])->name('investigations.index');
@@ -172,6 +177,10 @@ Route::prefix('investigacao')->name('guest.')->group(function () {
             Route::get('/status', [GuestInvestigationController::class, 'status'])->name('investigations.status');
             Route::get('/relatorio', [GuestInvestigationController::class, 'report'])->name('investigations.report');
             Route::post('/pix/confirmar', [GuestPaymentController::class, 'simulate'])->name('payments.simulate');
+            // "Já paguei": consulta o PagBank sob demanda (token = credencial) e
+            // libera a investigação só se o provedor confirmar o pagamento.
+            Route::post('/pagamento/verificar', [GuestPaymentController::class, 'verify'])
+                ->middleware('throttle:guest-verify')->name('payments.verify');
         });
 });
 
