@@ -1,0 +1,2 @@
+# Mantém o diretório no repositório: o Dockerfile restaura init.sql daqui no
+# boot do container e o painel admin grava o dump neste caminho.

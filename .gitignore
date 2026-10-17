@@ -22,6 +22,8 @@
 /storage/*.key
 /storage/pail
 /vendor
+# Dump temporário do painel admin (o init.sql final é versionável de propósito).
+/database/backups/.init-*.tmp
 _ide_helper.php
 Homestead.json
 Homestead.yaml

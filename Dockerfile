@@ -77,7 +77,10 @@ RUN if [ -f package.json ]; then npm ci || npm install; npm run build; fi
 COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
 
 # Ajustar permissões da aplicação e diretórios do MySQL/Redis
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+# `database/backups` é gravável pelo PHP-FPM: o painel admin gera o dump ali e
+# o /start.sh restaura o mesmo arquivo no boot.
+RUN mkdir -p /var/www/html/database/backups \
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database/backups \
     && mkdir -p /var/run/mysqld /var/lib/mysql \
     && chown -R mysql:mysql /var/run/mysqld /var/lib/mysql
 
@@ -120,23 +123,33 @@ GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'127.0.0.1';
 FLUSH PRIVILEGES;
 MYSQL_SCRIPT
 
-# 5. Iniciar Redis
-redis-server --daemonize yes
+# 5. Restaurar backup init.sql se existir no repositório
+if [ -f "/var/www/html/database/backups/init.sql" ]; then
+    echo "Restaurando backup de dados (init.sql)..."
+    mariadb -u root --socket=/run/mysqld/mysqld.sock "${DB_NAME}" < /var/www/html/database/backups/init.sql
+fi
 
-# 6. Garantir permissões de escrita para a web no storage e bootstrap/cache
-chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
-chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+# 6. Iniciar Redis
+redis-server --daemonize yes
 
 # 7. Iniciar PHP-FPM em background
 php-fpm -D
 
-# 8. Executar migrações do Laravel
+# 8. Executar migrações e limpar caches do Laravel
 php artisan migrate --force
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
 
 # 9. Iniciar Queue Worker
 php artisan queue:work redis --sleep=3 --tries=3 --timeout=90 > /dev/null 2>&1 &
 
-# 10. Iniciar Nginx
+# 10. Garantir permissões de escrita para a web por último (evita permissão negada em laravel.log)
+mkdir -p /var/www/html/database/backups
+chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database/backups
+chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database/backups
+
+# 11. Iniciar Nginx em primeiro plano
 nginx -g "daemon off;"
 EOF
 

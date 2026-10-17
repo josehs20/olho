@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Admin\AuditController as AdminAuditController;
+use App\Http\Controllers\Admin\BackupController as AdminBackupController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\IntegrationSettingsController as AdminIntegrationSettingsController;
 use App\Http\Controllers\Admin\InvestigationController as AdminInvestigationController;
@@ -97,6 +98,19 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/sources/{source}/toggle', [AdminSourceController::class, 'toggle'])->name('sources.toggle');
 
     Route::get('/audit', [AdminAuditController::class, 'index'])->name('audit.index');
+
+    /*
+    |----------------------------------------------------------------------
+    | Backup do banco (dump + download)
+    |----------------------------------------------------------------------
+    | Grava `database/backups/init.sql`, o mesmo caminho restaurado pelo
+    | Dockerfile no boot. O download apenas entrega o arquivo gerado; o
+    | throttle evita dumps simultâneos (a geração percorre a base inteira).
+    */
+    Route::get('/backup', [AdminBackupController::class, 'index'])->name('backup.index');
+    Route::post('/backup', [AdminBackupController::class, 'dump'])
+        ->middleware('throttle:6,1')->name('backup.dump');
+    Route::get('/backup/download', [AdminBackupController::class, 'download'])->name('backup.download');
 
     /*
     |----------------------------------------------------------------------

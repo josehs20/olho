@@ -66,7 +66,9 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction
 COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
 
 # Ajustar permissões
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+# `database/backups` recebe o dump gerado pelo painel admin.
+RUN mkdir -p /var/www/html/database/backups \
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database/backups
 
 # Porta que o Railway vai expor (usando a variável de ambiente $PORT do Railway)
 EXPOSE 8080
