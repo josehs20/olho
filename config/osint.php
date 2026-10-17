@@ -9,13 +9,14 @@
 | investigações usam os adapters determinísticos (mock, sem rede) ou disparam
 | as integrações reais. Valores:
 |
-|  - `real`: ignora qualquer `mock` e força os adapters reais de todas as
-|     fontes (Maigret, Sherlock, WhatsMyName, Holehe e o enriquecimento do
-|     Instagram). É a execução definitiva — nada de dados `example.com`.
+|  - `real` (padrão): ignora qualquer `mock` e força os adapters reais de todas
+|     as fontes (Maigret, Sherlock, WhatsMyName, Holehe e o enriquecimento do
+|     Instagram). É a execução definitiva — nada de dados `example.com`. Sem
+|     `OSINT_MODE` definido o sistema já investiga **real** (sem mock).
 |  - `mock`: força os adapters determinísticos de todas as fontes.
-|  - `auto` (padrão): cada fonte segue o seu próprio driver
-|     (`MAIGRET_DRIVER`, `SHERLOCK_DRIVER`, …), exatamente o comportamento
-|     anterior. A suíte de testes usa `auto` + drivers `mock` (phpunit.xml).
+|  - `auto`: cada fonte segue o seu próprio driver (`MAIGRET_DRIVER`,
+|     `SHERLOCK_DRIVER`, …), exatamente o comportamento anterior. A suíte de
+|     testes usa `auto` + drivers `mock` (phpunit.xml).
 |
 | O valor vem apenas do ambiente — nunca de entrada do usuário. Trocar o modo
 | não altera o restante do domínio: os adapters reais e os mocks compartilham o
@@ -25,6 +26,6 @@
 
 return [
 
-    'mode' => env('OSINT_MODE', 'auto'),
+    'mode' => env('OSINT_MODE', 'real'),
 
 ];

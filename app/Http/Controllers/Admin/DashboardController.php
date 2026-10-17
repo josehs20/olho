@@ -8,11 +8,12 @@ use App\Models\Investigation;
 use App\Models\Payment;
 use App\Models\SourceRun;
 use App\Models\User;
+use App\Services\VisitorCounter;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function index(): View
+    public function index(VisitorCounter $visits): View
     {
         return view('admin.dashboard', [
             'usersCount' => User::count(),
@@ -20,6 +21,7 @@ class DashboardController extends Controller
             'paymentsCount' => Payment::count(),
             'creditsSold' => (int) CreditTransaction::where('type', 'purchase_credit')->sum('amount'),
             'sourceErrors' => SourceRun::whereIn('status', ['failed', 'timeout'])->count(),
+            'visits' => $visits->totals(),
         ]);
     }
 }

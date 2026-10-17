@@ -11,11 +11,12 @@ namespace App\Sources;
  * enriquecimento do Instagram via instagrapi).
  *
  * Modos:
- *  - `real`: ignora qualquer `mock` e força os adapters reais de todas as
- *     fontes. É a execução "definitiva" — nada de `example.com`.
+ *  - `real` (padrão): ignora qualquer `mock` e força os adapters reais de
+ *     todas as fontes. É a execução "definitiva" — nada de `example.com`. Sem
+ *     `OSINT_MODE` definido, o sistema já investiga real (sem mock).
  *  - `mock`: força os adapters determinísticos de todas as fontes (comportamento
  *     de teste/desenvolvimento, sem tocar na rede).
- *  - `auto` (padrão): cada fonte segue o seu próprio driver
+ *  - `auto`: cada fonte segue o seu próprio driver
  *     (`config('sources.<slug>.driver')`), exatamente o comportamento anterior —
  *     por isso a suíte de testes e os ambientes existentes não mudam.
  *
