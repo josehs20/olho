@@ -76,9 +76,10 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
     && mkdir -p /var/run/mysqld /var/lib/mysql \
     && chown -R mysql:mysql /var/run/mysqld /var/lib/mysql
 
-# Porta padrão exposta pelo Docker
+# Porta padrão exposta
 EXPOSE 8080
-# Script de inicialização unificado corrigido para o boot
+
+# Script de inicialização unificado corrigido
 RUN cat << "EOF" > /start.sh
 #!/bin/sh
 
@@ -87,16 +88,16 @@ TARGET_PORT="${PORT:-8080}"
 sed -i "s/listen 80;/listen ${TARGET_PORT};/g" /etc/nginx/http.d/default.conf
 sed -i "s/fastcgi_pass app:9000;/fastcgi_pass 127.0.0.1:9000;/g" /etc/nginx/http.d/default.conf
 
-# 2. Inicializar diretório de dados do MySQL se não existir
+# 2. Inicializar diretório de dados do MariaDB/MySQL se necessário
 if [ ! -d "/var/lib/mysql/mysql" ]; then
-    mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null 2>&1
+    mariadb-install-db --user=mysql --datadir=/var/lib/mysql > /dev/null 2>&1
 fi
 
-# 3. Subir o MariaDB forçando a porta 3306 e IP local
-mysqld --user=mysql --bind-address=127.0.0.1 --port=3306 &
+# 3. Subir o MariaDB forçando escuta na rede TCP (porta 3306) e socket Unix
+mariadbd --user=mysql --bind-address=0.0.0.0 --port=3306 --skip-networking=0 &
 
 echo "Aguardando MariaDB..."
-while ! mariadb-admin ping -h 127.0.0.1 --silent; do
+while ! mariadb-admin ping --socket=/run/mysqld/mysqld.sock --silent; do
     sleep 1
 done
 
@@ -105,24 +106,24 @@ DB_NAME="${DB_DATABASE:-investigacao_publica}"
 DB_USER="${DB_USERNAME:-investigacao}"
 DB_PASS="${DB_PASSWORD:-secret}"
 
-mariadb -u root -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;"
-mariadb -u root -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
-mariadb -u root -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';"
-mariadb -u root -e "FLUSH PRIVILEGES;"
+mariadb -u root --socket=/run/mysqld/mysqld.sock -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;"
+mariadb -u root --socket=/run/mysqld/mysqld.sock -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'\%' IDENTIFIED BY '${DB_PASS}';"
+mariadb -u root --socket=/run/mysqld/mysqld.sock -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';"
+mariadb -u root --socket=/run/mysqld/mysqld.sock -e "FLUSH PRIVILEGES;"
 
 # 5. Iniciar Redis
 redis-server --daemonize yes
 
-# 6. Iniciar PHP-FPM
+# 6. Iniciar PHP-FPM em background
 php-fpm -D
 
-# 7. Rodar Migrações do Laravel
+# 7. Executar migrações do Laravel
 php artisan migrate --force
 
-# 8. Iniciar Queue Worker
+# 8. Iniciar Queue Worker em background
 php artisan queue:work redis --sleep=3 --tries=3 --timeout=90 > /dev/null 2>&1 &
 
-# 9. Iniciar Nginx
+# 9. Iniciar Nginx em primeiro plano (mantém o container vivo)
 nginx -g "daemon off;"
 EOF
 
