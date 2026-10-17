@@ -78,7 +78,6 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 
 # Porta padrão exposta
 EXPOSE 8080
-
 # Script de inicialização unificado corrigido
 RUN cat << "EOF" > /start.sh
 #!/bin/sh
@@ -93,7 +92,7 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
     mariadb-install-db --user=mysql --datadir=/var/lib/mysql > /dev/null 2>&1
 fi
 
-# 3. Subir o MariaDB forçando escuta na rede TCP (porta 3306) e socket Unix
+# 3. Subir o MariaDB forçando escuta na rede TCP e socket Unix
 mariadbd --user=mysql --bind-address=0.0.0.0 --port=3306 --skip-networking=0 &
 
 echo "Aguardando MariaDB..."
@@ -101,15 +100,19 @@ while ! mariadb-admin ping --socket=/run/mysqld/mysqld.sock --silent; do
     sleep 1
 done
 
-# 4. Criar Banco de Dados e Usuário
+# 4. Definir credenciais e criar banco/usuário de forma segura para localhost e 127.0.0.1
 DB_NAME="${DB_DATABASE:-investigacao_publica}"
 DB_USER="${DB_USERNAME:-investigacao}"
 DB_PASS="${DB_PASSWORD:-secret}"
 
-mariadb -u root --socket=/run/mysqld/mysqld.sock -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;"
-mariadb -u root --socket=/run/mysqld/mysqld.sock -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'\%' IDENTIFIED BY '${DB_PASS}';"
-mariadb -u root --socket=/run/mysqld/mysqld.sock -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';"
-mariadb -u root --socket=/run/mysqld/mysqld.sock -e "FLUSH PRIVILEGES;"
+mariadb -u root --socket=/run/mysqld/mysqld.sock <<MYSQL_SCRIPT
+CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
+CREATE USER IF NOT EXISTS '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'127.0.0.1';
+FLUSH PRIVILEGES;
+MYSQL_SCRIPT
 
 # 5. Iniciar Redis
 redis-server --daemonize yes
