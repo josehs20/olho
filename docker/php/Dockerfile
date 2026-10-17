@@ -72,9 +72,8 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 EXPOSE 8080
 
 # Script de inicialização para rodar Nginx e PHP-FPM simultaneamente
-# Script de inicialização unificado (Nginx + PHP-FPM)
 RUN echo '#!/bin/sh' > /start.sh \
-    && echo 'sed -i "s/listen 80;/listen \${PORT:-8080};/g" /etc/nginx/http.d/default.conf' >> /start.sh \
+    && echo "sed -i \"s/listen 80;/listen \$PORT;/g\" /etc/nginx/http.d/default.conf" >> /start.sh \
     && echo 'sed -i "s/fastcgi_pass app:9000;/fastcgi_pass 127.0.0.1:9000;/g" /etc/nginx/http.d/default.conf' >> /start.sh \
     && echo 'php-fpm -D' >> /start.sh \
     && echo 'nginx -g "daemon off;"' >> /start.sh \
