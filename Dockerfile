@@ -79,35 +79,54 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 # Porta padrão exposta (o script substitui dinamicamente pela porta do Railway)
 EXPOSE 8080
 
-# Script de inicialização unificado (MySQL + Redis + PHP-FPM + Worker + Scheduler + Nginx)
-RUN echo '#!/bin/sh' > /start.sh \
-    # 1. Configurar porta dinâmica do Nginx
-    && echo 'sed -i "s/listen 80;/listen $PORT;/g" /etc/nginx/http.d/default.conf' >> /start.sh \
-    # 2. Ajustar FastCGI para o PHP-FPM local
-    && echo 'sed -i "s/fastcgi_pass app:9000;/fastcgi_pass 127.0.0.1:9000;/g" /etc/nginx/http.d/default.conf' >> /start.sh \
-    # 3. Inicializar banco de dados MySQL local se não estiver inicializado
-    && echo 'if [ ! -d "/var/lib/mysql/mysql" ]; then' >> /start.sh \
-    && echo '    mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null' >> /start.sh \
-    && echo 'fi' >> /start.sh \
-    # 4. Iniciar o MySQL em background
-    && echo 'mysqld --user=mysql --bind-address=127.0.0.1 & ' >> /start.sh \
-    && echo 'echo "Aguardando o MySQL iniciar..."' >> /start.sh \
-    && echo 'while ! mysqladmin ping -h 127.0.0.1 --silent; do sleep 1; done' >> /start.sh \
-    # 5. Criar banco de dados se não existir
-    && echo 'mysql -u root -e "CREATE DATABASE IF NOT EXISTS \`${DB_DATABASE:-investigacao_publica}\`;"' >> /start.sh \
-    && echo 'mysql -u root -e "CREATE USER IF NOT EXISTS \'${DB_USERNAME:-investigacao}\'@\'localhost\' IDENTIFIED BY \'${DB_PASSWORD:-secret}\';"' >> /start.sh \
-    && echo 'mysql -u root -e "GRANT ALL PRIVILEGES ON \`${DB_DATABASE:-investigacao_publica}\`.* TO \'${DB_USERNAME:-investigacao}\'@\'localhost\';"' >> /start.sh \
-    && echo 'mysql -u root -e "FLUSH PRIVILEGES;"' >> /start.sh \
-    # 6. Iniciar Redis em background
-    && echo 'redis-server --daemonize yes' >> /start.sh \
-    # 7. Executar migrações do Laravel automaticamente no boot
-    && echo 'php artisan migrate --force' >> /start.sh \
-    # 8. Iniciar PHP-FPM em background
-    && echo 'php-fpm -D' >> /start.sh \
-    # 9. Iniciar Laravel Queue Worker em background
-    && echo 'php artisan queue:work redis --sleep=3 --tries=3 --timeout=90 > /dev/null 2>&1 &' >> /start.sh \
-    # 10. Iniciar Nginx em primeiro plano (mantém o container vivo)
-    && echo 'nginx -g "daemon off;"' >> /start.sh \
-    && chmod +x /start.sh
+# Script de inicialização unificado limpo usando Heredoc
+RUN cat << 'EOF' > /start.sh
+#!/bin/sh
+
+# 1. Configurar porta dinâmica do Nginx
+sed -i "s/listen 80;/listen $PORT;/g" /etc/nginx/http.d/default.conf
+
+# 2. Ajustar FastCGI para o PHP-FPM local
+sed -i "s/fastcgi_pass app:9000;/fastcgi_pass 127.0.0.1:9000;/g" /etc/nginx/http.d/default.conf
+
+# 3. Inicializar banco de dados MySQL local se não estiver inicializado
+if [ ! -d "/var/lib/mysql/mysql" ]; then
+    mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null
+fi
+
+# 4. Iniciar o MySQL em background
+mysqld --user=mysql --bind-address=127.0.0.1 &
+echo "Aguardando o MySQL iniciar..."
+while ! mysqladmin ping -h 127.0.0.1 --silent; do
+    sleep 1
+done
+
+# 5. Criar banco de dados e usuário se necessário
+DB_NAME="${DB_DATABASE:-investigacao_publica}"
+DB_USER="${DB_USERNAME:-investigacao}"
+DB_PASS="${DB_PASSWORD:-secret}"
+
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;"
+mysql -u root -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
+mysql -u root -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';"
+mysql -u root -e "FLUSH PRIVILEGES;"
+
+# 6. Iniciar Redis em background
+redis-server --daemonize yes
+
+# 7. Executar migrações do Laravel automaticamente no boot
+php artisan migrate --force
+
+# 8. Iniciar PHP-FPM em background
+php-fpm -D
+
+# 9. Iniciar Laravel Queue Worker em background
+php artisan queue:work redis --sleep=3 --tries=3 --timeout=90 > /dev/null 2>&1 &
+
+# 10. Iniciar Nginx em primeiro plano (mantém o container ativo)
+nginx -g "daemon off;"
+EOF
+
+RUN chmod +x /start.sh
 
 CMD ["/start.sh"]
