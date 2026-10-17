@@ -39,6 +39,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -54,7 +55,7 @@ class AppServiceProvider extends ServiceProvider
             return match ($settings->provider()) {
                 PaymentSettings::PROVIDER_FAKE => new FakePixProvider,
                 PaymentSettings::PROVIDER_PAGBANK => $app->make(PagBankProvider::class),
-                default => throw new \RuntimeException('Payment provider não suportado: '.$settings->provider()),
+                default => throw new \RuntimeException('Payment provider não suportado: ' . $settings->provider()),
             };
         });
 
@@ -67,7 +68,7 @@ class AppServiceProvider extends ServiceProvider
         // comportamento é exatamente o do runner de processo.
         $this->app->singleton(ToolRunRecorder::class);
 
-        $this->app->bind(ToolRunner::class, fn (Application $app) => new RecordingToolRunner(
+        $this->app->bind(ToolRunner::class, fn(Application $app) => new RecordingToolRunner(
             new ProcessToolRunner,
             $app->make(ToolRunRecorder::class),
         ));
@@ -76,11 +77,11 @@ class AppServiceProvider extends ServiceProvider
         // Passa pelo `ToolRunner` para herdar argv separado, timeout, diretório
         // isolado e captura pelo `ToolRunRecorder` (stdout/stderr/exit code no
         // painel de testes individuais).
-        $this->app->bind(ToolProcessRunner::class, fn (Application $app) => new ToolProcessRunner(
+        $this->app->bind(ToolProcessRunner::class, fn(Application $app) => new ToolProcessRunner(
             $app->make(ToolRunner::class),
         ));
 
-        $this->app->bind(ToolWorkspace::class, fn () => new ToolWorkspace($this->app->make(Filesystem::class)));
+        $this->app->bind(ToolWorkspace::class, fn() => new ToolWorkspace($this->app->make(Filesystem::class)));
 
         // `InstagramSettings` é resolvido **por método** (sem singleton), como o
         // `PaymentSettings`: o memo do `SettingsService` é por instância e um
@@ -179,42 +180,45 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        if ($this->app->environment('production') || env('FORCE_HTTPS', false)) {
+            URL::forceScheme('https');
+        }
         // Datas relativas (diffForHumans) e formatações seguem o idioma da aplicação.
         Carbon::setLocale(config('app.locale'));
 
-        Gate::define('access-admin', fn (User $user) => $user->is_admin);
+        Gate::define('access-admin', fn(User $user) => $user->is_admin);
         Gate::policy(Investigation::class, InvestigationPolicy::class);
 
         // Investigação avulsa (prompt 41): freia criação em massa de cobranças e
         // força bruta/enumeração de tokens (limite por IP e por hash do token).
-        RateLimiter::for('guest-create', fn (Request $request) => [
-            Limit::perMinute(5)->by('guest-create-ip:'.$request->ip()),
-            Limit::perHour(20)->by('guest-create-hour:'.$request->ip()),
+        RateLimiter::for('guest-create', fn(Request $request) => [
+            Limit::perMinute(5)->by('guest-create-ip:' . $request->ip()),
+            Limit::perHour(20)->by('guest-create-hour:' . $request->ip()),
         ]);
 
         RateLimiter::for('guest-access', function (Request $request) {
             $token = (string) $request->route('token');
 
             return [
-                Limit::perMinute(60)->by('guest-access-ip:'.$request->ip()),
-                Limit::perMinute(30)->by('guest-access-token:'.hash('sha256', $token)),
+                Limit::perMinute(60)->by('guest-access-ip:' . $request->ip()),
+                Limit::perMinute(30)->by('guest-access-token:' . hash('sha256', $token)),
             ];
         });
 
         // Testes individuais de módulo (prompt 47 §12): cada disparo executa uma
         // ferramenta externa (processo/HTTP) e reserva crédito — limita rajadas
         // por administrador autenticado.
-        RateLimiter::for('module-test', fn (Request $request) => [
-            Limit::perMinute(6)->by('module-test-user:'.($request->user()?->id ?? 'guest')),
-            Limit::perHour(60)->by('module-test-hour:'.($request->user()?->id ?? 'guest')),
+        RateLimiter::for('module-test', fn(Request $request) => [
+            Limit::perMinute(6)->by('module-test-user:' . ($request->user()?->id ?? 'guest')),
+            Limit::perHour(60)->by('module-test-hour:' . ($request->user()?->id ?? 'guest')),
         ]);
 
         // Sincronização forçada de pagamento PagBank (webhook sem entrega): cada
         // acionamento reconsulta o provedor externo — limita rajadas por
         // administrador autenticado, sem afetar o polling normal do cliente.
-        RateLimiter::for('admin-sync', fn (Request $request) => [
-            Limit::perMinute(30)->by('admin-sync-user:'.($request->user()?->id ?? 'guest')),
-            Limit::perHour(300)->by('admin-sync-hour:'.($request->user()?->id ?? 'guest')),
+        RateLimiter::for('admin-sync', fn(Request $request) => [
+            Limit::perMinute(30)->by('admin-sync-user:' . ($request->user()?->id ?? 'guest')),
+            Limit::perHour(300)->by('admin-sync-hour:' . ($request->user()?->id ?? 'guest')),
         ]);
 
         // "Já paguei" (conta): cada clique reconsulta o PagBank. O limite por
@@ -225,8 +229,8 @@ class AppServiceProvider extends ServiceProvider
             $paymentId = is_object($payment) ? $payment->getKey() : $payment;
 
             return [
-                Limit::perMinute(6)->by('payment-verify-user:'.($request->user()?->id ?? 'guest')),
-                Limit::perMinute(3)->by('payment-verify-order:'.$paymentId),
+                Limit::perMinute(6)->by('payment-verify-user:' . ($request->user()?->id ?? 'guest')),
+                Limit::perMinute(3)->by('payment-verify-order:' . $paymentId),
             ];
         });
 
@@ -236,9 +240,9 @@ class AppServiceProvider extends ServiceProvider
             $token = hash('sha256', (string) $request->route('token'));
 
             return [
-                Limit::perMinute(6)->by('guest-verify-ip:'.$request->ip()),
-                Limit::perMinute(4)->by('guest-verify-token:'.$token),
-                Limit::perHour(20)->by('guest-verify-hour:'.$token),
+                Limit::perMinute(6)->by('guest-verify-ip:' . $request->ip()),
+                Limit::perMinute(4)->by('guest-verify-token:' . $token),
+                Limit::perHour(20)->by('guest-verify-hour:' . $token),
             ];
         });
     }
