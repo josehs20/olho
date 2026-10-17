@@ -1,24 +1,24 @@
-# syntax=docker/dockerfile:1
-
 # =============================================================================
-# Investigação Pública — imagem de aplicação PHP (Laravel 13)
-# Stack: PHP 8.5 FPM (Alpine) + Composer, usuário não-root.
+# Investigação Pública — Imagem Unificada (PHP 8.5 FPM + Nginx)
 # =============================================================================
 
 FROM composer:2 AS composer
 
 FROM php:8.5-fpm-alpine
 
-# Dependências de sistema necessárias para compilar as extensões.
+# Instalar Nginx, Supervisor (opcional ou iniciar via script) e dependências
 RUN apk add --no-cache \
+        nginx \
         freetype-dev \
         icu-dev \
         libjpeg-turbo-dev \
         libpng-dev \
         libzip-dev \
+        python3 \
+        py3-pip \
         $PHPIZE_DEPS
 
-# Extensões que a imagem base não traz embutidas.
+# Configurar extensões PHP
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j"$(nproc)" \
         bcmath \
@@ -30,93 +30,53 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && pecl install redis \
     && docker-php-ext-enable redis
 
-# Remove apenas as ferramentas de build; mantém as libs de runtime.
-RUN apk del $PHPIZE_DEPS
-
-# -----------------------------------------------------------------------------
-# Ferramentas OSINT (adapters reais).
-#
-# - Maigret (MIT, Python >= 3.10) — busca de username em milhares de sites.
-# - Sherlock (MIT, Python >= 3.9) — busca de username em redes sociais.
-# - Holehe (GPL-3.0) — verificação pública de cadastro por e-mail; executado
-#   como processo separado e sempre com `--no-password-recovery`.
-# - Versões fixadas para instalação reproduzível (`--build-arg`); nenhuma das
-#   duas exige dependências de build (wheels musllinux disponíveis).
-# - Binários em /usr/local/bin (maigret, sherlock).
-# -----------------------------------------------------------------------------
+# Ferramentas OSINT (Maigret, Sherlock, Holehe, Instagrapi)
 ARG MAIGRET_VERSION=0.6.6
 ARG SHERLOCK_VERSION=0.16.2
 ARG HOLEHE_VERSION=1.61
-# instagrapi 2.x (prompt 48): API privada do Instagram usada pela etapa de
-# enriquecimento de perfil. Requer Python 3.10+ (a imagem já traz 3.12) e
-# curl_cffi, incluído na instalação padrão.
 ARG INSTAGRAPI_VERSION=2.7.4
 
-RUN apk add --no-cache python3 py3-pip \
-    && pip install --break-system-packages --no-cache-dir \
+RUN pip install --break-system-packages --no-cache-dir \
         "maigret==${MAIGRET_VERSION}" \
         "sherlock-project==${SHERLOCK_VERSION}" \
         "holehe==${HOLEHE_VERSION}" \
-        "instagrapi==${INSTAGRAPI_VERSION}" \
-    && maigret --version > /dev/null \
-    && sherlock --version > /dev/null \
-    && pip show holehe > /dev/null \
-    && python3 -c "import instagrapi; from importlib.metadata import version; print(version('instagrapi'))" > /dev/null
+        "instagrapi==${INSTAGRAPI_VERSION}"
 
-# -----------------------------------------------------------------------------
-# Correção do bug do `-T/--timeout` do Holehe 1.61 (upstream).
-#
-# O `argparse` do Holehe declara `-T/--timeout` **sem** `type=int`, então a
-# string (`"10"`) chega ao `httpx.AsyncClient(timeout=...)` e o backend
-# trio/anyio estoura `TypeError: '<' not supported between instances of 'str'
-# and 'int'` nas requisições que passam pela validação de timeout (redireciona-
-# mento/DNS). O resultado é uma falha silenciosa: os módulos que estouram viram
-# `rateLimit = True` no CSV e a ferramenta devolve "nenhum cadastro" mesmo para
-# e-mails que existem. Medido no container em 02/10/2026 com e-mail real:
-#
-#   holehe <email> ... --csv --timeout 10  -> 0 encontrados, 116/117 bloqueados
-#   holehe <email> ... --csv               -> 3 encontrados, 74/117 bloqueados
-#
-# O patch aplica o `type=int` que o upstream pretendia; o `grep` derruba o build
-# se o padrão mudar (versão nova), em vez de deixar o bug voltar silenciosamente.
-# -----------------------------------------------------------------------------
+# Correção do Holehe
 RUN HOLEHE_CORE="$(python3 -c 'import holehe.core as core; print(core.__file__)')" \
-    && sed -i 's|parser\.add_argument("-T","--timeout", default=10|parser.add_argument("-T","--timeout", type=int, default=10|' "$HOLEHE_CORE" \
-    && grep -q -- '"--timeout", type=int' "$HOLEHE_CORE"
+    && sed -i 's|parser\.add_argument("-T","--timeout", default=10|parser.add_argument("-T","--timeout", type=int, default=10|' "$HOLEHE_CORE"
 
-# -----------------------------------------------------------------------------
-# WhatsMyName — dataset público de verificação de username.
-#
-# - Licença CC BY-SA 4.0 (© Micah Hoffman e colaboradores); o LICENSE é mantido
-#   ao lado do dataset para cumprir a atribuição.
-# - O upstream é um dataset consumido por checkers externos (os checkers
-#   embutidos foram removidos em 2023), então fixamos o arquivo por commit.
-# - O build falha se o JSON baixado não puder ser interpretado.
-# -----------------------------------------------------------------------------
+# WhatsMyName dataset
 ARG WHATSMYNAME_COMMIT=062bcfe48df79fa618e96edc79dc9673f3fe5643
-
 RUN mkdir -p /opt/whatsmyname \
-    && wget -qO /opt/whatsmyname/wmn-data.json "https://raw.githubusercontent.com/WebBreacher/WhatsMyName/${WHATSMYNAME_COMMIT}/wmn-data.json" \
-    && wget -qO /opt/whatsmyname/LICENSE.md "https://raw.githubusercontent.com/WebBreacher/WhatsMyName/${WHATSMYNAME_COMMIT}/LICENSE.md" \
-    && printf '%s' "${WHATSMYNAME_COMMIT}" > /opt/whatsmyname/REVISION \
-    && php -r 'exit(is_array(json_decode((string) file_get_contents("/opt/whatsmyname/wmn-data.json"), true)["sites"] ?? null) ? 0 : 1);'
+    && wget -qO /opt/whatsmyname/wmn-data.json "https://raw.githubusercontent.com/WebBreacher/WhatsMyName/${WHATSMYNAME_COMMIT}/wmn-data.json"
 
-# Composer (multi-stage).
+# Copiar Composer
 COPY --from=composer /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Usuário não-root para o FPM.
-RUN addgroup -g 1000 -S app \
-    && adduser -u 1000 -S app -G app \
-    && mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache \
-    && chown -R app:app /var/www/html
+# Copiar código da aplicação
+COPY . /var/www/html
 
-# Código da aplicação.
-COPY --chown=app:app . /var/www/html
+# Instalar dependências do Composer
+RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-USER app
+# Copiar configuração customizada do Nginx para o diretório padrão do Alpine
+COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
 
-EXPOSE 9000
+# Ajustar permissões
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-CMD ["php-fpm"]
+# Porta que o Railway vai expor (usando a variável de ambiente $PORT do Railway)
+EXPOSE 8080
+
+# Script de inicialização para rodar Nginx e PHP-FPM simultaneamente
+RUN echo '#!/bin/sh' > /start.sh \
+    && echo 'sed -i "s/listen = 9000/listen = 127.0.0.1:9000/g" /usr/local/etc/php-fpm.d/www.conf' >> /start.sh \
+    && echo 'sed -i "s/80/${PORT:-8080}/g" /etc/nginx/http.d/default.conf' >> /start.sh \
+    && echo 'php-fpm -D' >> /start.sh \
+    && echo 'nginx -g "daemon off;"' >> /start.sh \
+    && chmod +x /start.sh
+
+CMD ["/start.sh"]
