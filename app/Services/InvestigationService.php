@@ -10,6 +10,7 @@ use App\Models\SourceDefinition;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Sources\InvestigationInput;
+use App\Sources\OsintMode;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -166,6 +167,20 @@ class InvestigationService
 
         $input = $this->sanitize($latest->input_snapshot ?? []);
         $moduleSlugs = $latest->moduleSlugs() ?: ($investigation->selected_modules ?? []);
+
+        // Em integração real os módulos simulados não têm adapter real: uma
+        // reexecução de investigação criada em mock segue apenas com os módulos
+        // reais do snapshot.
+        if (OsintMode::forcesReal()) {
+            $moduleSlugs = array_values(array_diff($moduleSlugs, SourceDefinition::MOCK_SLUGS));
+
+            if ($moduleSlugs === []) {
+                throw new \InvalidArgumentException(
+                    'A execução anterior usou apenas módulos simulados (mock), indisponíveis com a integração real. Crie uma nova investigação.'
+                );
+            }
+        }
+
         $modules = $this->resolveModules($moduleSlugs);
 
         $selection = $this->orchestrator->split($modules, InvestigationInput::fromArray($input));
@@ -266,7 +281,7 @@ class InvestigationService
      */
     private function activeModules(): Collection
     {
-        $modules = SourceDefinition::query()->where('active', true)->orderBy('name')->get();
+        $modules = SourceDefinition::query()->executable()->where('active', true)->orderBy('name')->get();
 
         if ($modules->isEmpty()) {
             throw new \InvalidArgumentException('Nenhum módulo ativo disponível.');
@@ -309,9 +324,16 @@ class InvestigationService
         $modules = SourceDefinition::query()
             ->whereIn('slug', $slugs)
             ->where('active', true)
+            ->executable()
             ->get();
 
         if ($modules->count() !== count($slugs)) {
+            if (OsintMode::forcesReal() && array_intersect($slugs, SourceDefinition::MOCK_SLUGS) !== []) {
+                throw new \InvalidArgumentException(
+                    'Os módulos simulados (mock) não estão disponíveis com a integração real. Selecione apenas módulos reais.'
+                );
+            }
+
             throw new \InvalidArgumentException('Um ou mais módulos são inválidos ou inativos.');
         }
 

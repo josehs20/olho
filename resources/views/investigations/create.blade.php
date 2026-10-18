@@ -63,11 +63,26 @@
     @if ($modules->isEmpty())
      <p class="mt-1 text-sm text-mist-400">{{ __('Nenhum módulo disponível.') }}</p>
     @else
-     <div class="mt-2 space-y-2">
+     @php
+      $oldModules = old('modules', []);
+      $moduleSlugs = $modules->pluck('slug')->all();
+      $selectedModules = is_array($oldModules)
+          ? array_values(array_intersect($moduleSlugs, $oldModules))
+          : [];
+     @endphp
+     <div class="mt-2 space-y-2"
+      x-data="{ all: @js($moduleSlugs), selected: @js($selectedModules) }">
+      <label class="flex items-center gap-2 border-b border-line/70 pb-2">
+       <input type="checkbox" x-ref="selectAll" class="rounded border-line text-signal-300"
+        x-effect="$el.indeterminate = selected.length > 0 && selected.length < all.length"
+        :checked="all.length > 0 && selected.length === all.length"
+        x-on:change="selected = $event.target.checked ? [...all] : []">
+       <span class="text-sm font-medium text-mist-200">{{ __('Selecionar todos os módulos') }}</span>
+      </label>
       @foreach ($modules as $module)
       <label class="flex items-center gap-2">
-       <input type="checkbox" name="modules[]" value="{{ $module->slug }}"
-        @checked(in_array($module->slug, old('modules', [])))
+       <input type="checkbox" name="modules[]" value="{{ $module->slug }}" x-model="selected"
+        @checked(in_array($module->slug, $selectedModules))
         class="rounded border-line text-signal-300">
        <span class="text-sm text-mist-300">
         {{ $module->name }}

@@ -29,7 +29,7 @@ class InvestigationController extends Controller
     public function create(): View
     {
         return view('investigations.create', [
-            'modules' => SourceDefinition::query()->where('active', true)->orderBy('name')->get(),
+            'modules' => SourceDefinition::query()->executable()->where('active', true)->orderBy('name')->get(),
         ]);
     }
 

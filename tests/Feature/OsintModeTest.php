@@ -17,12 +17,11 @@ use App\Sources\SourceRegistry;
 use Tests\TestCase;
 
 /**
- * Parâmetro de controle central `OSINT_MODE` (mock vs. integração real).
+ * Validação por ambiente do modo de execução OSINT.
  *
- * Prova que um único interruptor decide, para todo o `SourceRegistry`, se as
- * investigações usam os adapters determinísticos (mock) ou disparam as
- * integrações reais — e que o modo `auto` preserva a decisão por fonte
- * (o comportamento histórico, no qual a suíte de testes se apoia).
+ * Prova que a integração real só acontece com `APP_ENV=production`: em local,
+ * testing ou staging o modo efetivo é sempre `mock` (nenhuma ferramenta externa
+ * é disparada), independentemente de `OSINT_MODE` e dos drivers por fonte.
  */
 class OsintModeTest extends TestCase
 {
@@ -36,27 +35,68 @@ class OsintModeTest extends TestCase
         return $this->app->make(SourceRegistry::class);
     }
 
-    public function test_mode_defaults_to_auto_when_unset(): void
+    /**
+     * Simula o único ambiente que autoriza integrações reais.
+     */
+    private function production(): void
     {
+        $this->app['env'] = OsintMode::PRODUCTION_ENV;
+    }
+
+    public function test_non_production_always_runs_mock_even_with_osint_mode_real(): void
+    {
+        // Drivers por fonte em real, mas fora de produção a validação de
+        // ambiente vence: NENHUMA ferramenta externa é disparada.
+        config([
+            'osint.mode' => 'real',
+            'sources.maigret.driver' => 'process',
+            'sources.sherlock.driver' => 'process',
+            'sources.whatsmyname.driver' => 'http',
+            'sources.holehe.driver' => 'process',
+            'sources.instagram.driver' => 'process',
+        ]);
+
+        $this->assertFalse(OsintMode::isProduction());
+        $this->assertSame(OsintMode::MODE_MOCK, OsintMode::mode());
+        $this->assertTrue(OsintMode::forcesMock());
+        $this->assertFalse(OsintMode::forced());
+
+        $registry = $this->freshRegistry();
+
+        $this->assertInstanceOf(MaigretMockAdapter::class, $registry->get('maigret'));
+        $this->assertInstanceOf(SherlockMockAdapter::class, $registry->get('sherlock'));
+        $this->assertInstanceOf(WhatsMyNameMockAdapter::class, $registry->get('whatsmyname'));
+        $this->assertInstanceOf(HoleheMockAdapter::class, $registry->get('holehe'));
+        $this->assertInstanceOf(InstagramMockAdapter::class, $registry->get('instagram'));
+    }
+
+    public function test_production_defaults_to_real_when_osint_mode_is_unset(): void
+    {
+        $this->production();
         config(['osint.mode' => null]);
 
-        $this->assertSame(OsintMode::MODE_AUTO, OsintMode::mode());
-        $this->assertTrue(OsintMode::isAuto());
-        $this->assertNull(OsintMode::forced());
+        $this->assertTrue(OsintMode::isProduction());
+        $this->assertSame(OsintMode::MODE_REAL, OsintMode::mode());
+        $this->assertTrue(OsintMode::forcesReal());
+        $this->assertTrue(OsintMode::forced());
     }
 
-    public function test_unknown_mode_falls_back_to_auto(): void
+    public function test_production_treats_auto_and_unknown_modes_as_real(): void
     {
+        $this->production();
+
+        config(['osint.mode' => 'auto']);
+        $this->assertSame(OsintMode::MODE_REAL, OsintMode::mode());
+
         config(['osint.mode' => 'qualquer-coisa']);
-
-        $this->assertSame(OsintMode::MODE_AUTO, OsintMode::mode());
-        $this->assertTrue(OsintMode::isAuto());
+        $this->assertSame(OsintMode::MODE_REAL, OsintMode::mode());
     }
 
-    public function test_real_mode_forces_real_adapters_even_when_per_source_is_mock(): void
+    public function test_production_real_mode_forces_real_adapters_even_when_per_source_is_mock(): void
     {
-        // Drivers por fonte em `mock` (como a suíte) mas o interruptor em `real`:
-        // o interruptor central vence e NENHUM mock é usado.
+        // Em produção com `OSINT_MODE=real`, drivers por fonte em `mock` não
+        // impedem a integração real: o ambiente vence e NENHUM mock é usado.
+        $this->production();
         config([
             'osint.mode' => 'real',
             'sources.maigret.driver' => 'mock',
@@ -78,10 +118,11 @@ class OsintModeTest extends TestCase
         $this->assertInstanceOf(InstagramAdapter::class, $registry->get('instagram'));
     }
 
-    public function test_mock_mode_forces_mock_adapters_even_when_per_source_is_real(): void
+    public function test_production_mock_mode_is_a_kill_switch_even_when_per_source_is_real(): void
     {
-        // Drivers por fonte em real (`process`/`http`) mas o interruptor em
-        // `mock`: os mocks determinísticos vencem (comportamento de teste).
+        // `OSINT_MODE=mock` em produção é o único caminho de volta aos mocks,
+        // sem alterar o `APP_ENV` (drivers `process`/`http` são ignorados).
+        $this->production();
         config([
             'osint.mode' => 'mock',
             'sources.maigret.driver' => 'process',
@@ -103,32 +144,13 @@ class OsintModeTest extends TestCase
         $this->assertInstanceOf(InstagramMockAdapter::class, $registry->get('instagram'));
     }
 
-    public function test_auto_mode_preserves_per_source_decision(): void
+    public function test_labels_and_tones_follow_the_environment(): void
     {
-        // Sem override global, cada fonte segue o seu próprio driver — o
-        // comportamento anterior, no qual a suíte hermética se apoia.
-        config([
-            'osint.mode' => 'auto',
-            'sources.maigret.driver' => 'process',
-            'sources.whatsmyname.driver' => 'http',
-            'sources.sherlock.driver' => 'mock',
-            'sources.holehe.driver' => 'mock',
-            'sources.instagram.driver' => 'mock',
-        ]);
+        // Fora de produção (suíte) o modo efetivo é mock.
+        $this->assertSame('Mock (simulado)', OsintMode::label());
+        $this->assertSame('warning', OsintMode::tone());
 
-        $this->assertNull(OsintMode::forced());
-
-        $registry = $this->freshRegistry();
-
-        $this->assertInstanceOf(MaigretAdapter::class, $registry->get('maigret'));
-        $this->assertInstanceOf(WhatsMyNameAdapter::class, $registry->get('whatsmyname'));
-        $this->assertInstanceOf(SherlockMockAdapter::class, $registry->get('sherlock'));
-        $this->assertInstanceOf(HoleheMockAdapter::class, $registry->get('holehe'));
-        $this->assertInstanceOf(InstagramMockAdapter::class, $registry->get('instagram'));
-    }
-
-    public function test_labels_and_tones_map_each_mode(): void
-    {
+        $this->production();
         config(['osint.mode' => 'real']);
         $this->assertSame('Integração real', OsintMode::label());
         $this->assertSame('success', OsintMode::tone());
@@ -136,9 +158,5 @@ class OsintModeTest extends TestCase
         config(['osint.mode' => 'mock']);
         $this->assertSame('Mock (simulado)', OsintMode::label());
         $this->assertSame('warning', OsintMode::tone());
-
-        config(['osint.mode' => 'auto']);
-        $this->assertSame('Automático (por fonte)', OsintMode::label());
-        $this->assertSame('violet', OsintMode::tone());
     }
 }

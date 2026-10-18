@@ -5,77 +5,75 @@ namespace App\Sources;
 /**
  * Parâmetro de controle central da execução OSINT (mock vs. integração real).
  *
- * Um único interruptor (`OSINT_MODE`) decide, para todo o pipeline, se as
- * investigações usam os adapters determinísticos (mock, sem rede) ou disparam
- * as integrações reais (Maigret, Sherlock, WhatsMyName, Holehe e o
- * enriquecimento do Instagram via instagrapi).
+ * A decisão é **validada pelo ambiente antes de cada investigação** e reaplicada
+ * a cada adapter resolvido pelo `SourceRegistry`:
  *
- * Modos:
- *  - `real` (padrão): ignora qualquer `mock` e força os adapters reais de
- *     todas as fontes. É a execução "definitiva" — nada de `example.com`. Sem
- *     `OSINT_MODE` definido, o sistema já investiga real (sem mock).
- *  - `mock`: força os adapters determinísticos de todas as fontes (comportamento
- *     de teste/desenvolvimento, sem tocar na rede).
- *  - `auto`: cada fonte segue o seu próprio driver
- *     (`config('sources.<slug>.driver')`), exatamente o comportamento anterior —
- *     por isso a suíte de testes e os ambientes existentes não mudam.
+ *  - `APP_ENV=production` → integração real (Maigret, Sherlock, WhatsMyName,
+ *     Holehe e o enriquecimento do Instagram via instagrapi);
+ *  - qualquer outro `APP_ENV` (`local`, `testing`, `staging`, …) → mock
+ *     determinístico, sem tocar na rede, **independentemente** de `OSINT_MODE`;
+ *  - em produção, `OSINT_MODE=mock` funciona como kill switch explícito, para
+ *     interromper as integrações reais sem alterar o `APP_ENV`.
  *
- * O modo é resolvido pela configuração (`config/osint.php` → `OSINT_MODE`), nunca
- * por entrada do usuário: nenhum valor vindo do request escolhe real vs. mock.
+ * O modo é resolvido pelo ambiente/configuração (`config/osint.php` →
+ * `OSINT_MODE`), nunca por entrada do usuário: nenhum valor vindo do request
+ * escolhe real vs. mock.
  */
 final class OsintMode
 {
-    /** Cada fonte decide pelo seu próprio driver (comportamento histórico). */
-    public const MODE_AUTO = 'auto';
+    /** Força as integrações reais (ignora os mocks). */
+    public const MODE_REAL = 'real';
 
     /** Força todos os adapters determinísticos (sem rede). */
     public const MODE_MOCK = 'mock';
 
-    /** Força as integrações reais (ignora os mocks). */
-    public const MODE_REAL = 'real';
+    /** Único `APP_ENV` que autoriza a execução real. */
+    public const PRODUCTION_ENV = 'production';
 
     /**
-     * Modo efetivo, normalizado para um dos três valores aceitos. Qualquer valor
-     * desconhecido cai em `auto`, o que preserva o comportamento anterior.
+     * Modo efetivo da execução, já validado contra o `APP_ENV`.
+     *
+     * Fora de produção o retorno é sempre `mock`: desenvolvimento e suíte de
+     * testes nunca disparam ferramentas externas. Em produção, qualquer valor
+     * que não seja explicitamente `mock` resolve para `real` (inclusive `auto`
+     * ou valores desconhecidos, por segurança).
      */
     public static function mode(): string
     {
-        $mode = strtolower(trim((string) config('osint.mode', self::MODE_AUTO)));
+        if (! self::isProduction()) {
+            return self::MODE_MOCK;
+        }
 
-        return in_array($mode, [self::MODE_AUTO, self::MODE_MOCK, self::MODE_REAL], true)
-            ? $mode
-            : self::MODE_AUTO;
+        $mode = strtolower(trim((string) config('osint.mode', self::MODE_REAL)));
+
+        return $mode === self::MODE_MOCK ? self::MODE_MOCK : self::MODE_REAL;
     }
 
-    /** `true` quando o interruptor força a integração real. */
+    /** `true` somente quando o `APP_ENV` autoriza as integrações reais. */
+    public static function isProduction(): bool
+    {
+        return app()->environment(self::PRODUCTION_ENV);
+    }
+
+    /** `true` quando o modo efetivo exige a integração real. */
     public static function forcesReal(): bool
     {
         return self::mode() === self::MODE_REAL;
     }
 
-    /** `true` quando o interruptor força os mocks. */
+    /** `true` quando o modo efetivo exige os mocks. */
     public static function forcesMock(): bool
     {
         return self::mode() === self::MODE_MOCK;
     }
 
-    /** `true` quando cada fonte segue o seu próprio driver (sem override global). */
-    public static function isAuto(): bool
-    {
-        return self::mode() === self::MODE_AUTO;
-    }
-
     /**
-     * Override global do registry: `true` força o adapter real, `false` força o
-     * mock e `null` mantém a decisão por fonte (modo `auto`).
+     * Override global do registry: `true` força o adapter real e `false` força o
+     * mock. Não há mais decisão por fonte — o ambiente decide para todas.
      */
-    public static function forced(): ?bool
+    public static function forced(): bool
     {
-        return match (self::mode()) {
-            self::MODE_REAL => true,
-            self::MODE_MOCK => false,
-            default => null,
-        };
+        return self::forcesReal();
     }
 
     /**
@@ -83,23 +81,14 @@ final class OsintMode
      */
     public static function label(): string
     {
-        return match (self::mode()) {
-            self::MODE_REAL => 'Integração real',
-            self::MODE_MOCK => 'Mock (simulado)',
-            default => 'Automático (por fonte)',
-        };
+        return self::forcesReal() ? 'Integração real' : 'Mock (simulado)';
     }
 
     /**
-     * Tom do badge do modo (verde=real, amarelo=mock, violet=auto), alinhado ao
-     * `x-badge`.
+     * Tom do badge do modo (verde=real, amarelo=mock), alinhado ao `x-badge`.
      */
     public static function tone(): string
     {
-        return match (self::mode()) {
-            self::MODE_REAL => 'success',
-            self::MODE_MOCK => 'warning',
-            default => 'violet',
-        };
+        return self::forcesReal() ? 'success' : 'warning';
     }
 }

@@ -19,7 +19,6 @@ use App\Sources\Adapters\SherlockAdapter;
 use App\Sources\Adapters\SherlockMockAdapter;
 use App\Sources\Adapters\WhatsMyNameAdapter;
 use App\Sources\Adapters\WhatsMyNameMockAdapter;
-use App\Sources\Integrations\InstagramSettings;
 use App\Sources\InvestigationSource;
 use App\Sources\Mocks\MockEmailSource;
 use App\Sources\Mocks\MockUsernameSource;
@@ -55,7 +54,7 @@ class AppServiceProvider extends ServiceProvider
             return match ($settings->provider()) {
                 PaymentSettings::PROVIDER_FAKE => new FakePixProvider,
                 PaymentSettings::PROVIDER_PAGBANK => $app->make(PagBankProvider::class),
-                default => throw new \RuntimeException('Payment provider não suportado: ' . $settings->provider()),
+                default => throw new \RuntimeException('Payment provider não suportado: '.$settings->provider()),
             };
         });
 
@@ -68,7 +67,7 @@ class AppServiceProvider extends ServiceProvider
         // comportamento é exatamente o do runner de processo.
         $this->app->singleton(ToolRunRecorder::class);
 
-        $this->app->bind(ToolRunner::class, fn(Application $app) => new RecordingToolRunner(
+        $this->app->bind(ToolRunner::class, fn (Application $app) => new RecordingToolRunner(
             new ProcessToolRunner,
             $app->make(ToolRunRecorder::class),
         ));
@@ -77,11 +76,11 @@ class AppServiceProvider extends ServiceProvider
         // Passa pelo `ToolRunner` para herdar argv separado, timeout, diretório
         // isolado e captura pelo `ToolRunRecorder` (stdout/stderr/exit code no
         // painel de testes individuais).
-        $this->app->bind(ToolProcessRunner::class, fn(Application $app) => new ToolProcessRunner(
+        $this->app->bind(ToolProcessRunner::class, fn (Application $app) => new ToolProcessRunner(
             $app->make(ToolRunner::class),
         ));
 
-        $this->app->bind(ToolWorkspace::class, fn() => new ToolWorkspace($this->app->make(Filesystem::class)));
+        $this->app->bind(ToolWorkspace::class, fn () => new ToolWorkspace($this->app->make(Filesystem::class)));
 
         // `InstagramSettings` é resolvido **por método** (sem singleton), como o
         // `PaymentSettings`: o memo do `SettingsService` é por instância e um
@@ -104,73 +103,72 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Decide real vs. mock respeitando o parâmetro central (`OSINT_MODE`).
+     * Decide real vs. mock pelo modo efetivo (`OsintMode`), que já aplica a
+     * validação de `APP_ENV`: integração real somente em produção.
      *
-     * `$perSource` é a decisão histórica de cada fonte (driver `process`/`http`).
-     * Em modo `auto` o valor da fonte é preservado — o comportamento anterior
-     * não muda; em `real`/`mock` o interruptor central vence para **todas** as
-     * fontes, de forma transparente para o restante do domínio (mesmo contrato,
-     * mesmo slug).
+     * O driver histórico de cada fonte (`process`/`http`) não escolhe mais a
+     * implementação — o ambiente vence para **todas** as fontes, de forma
+     * transparente para o restante do domínio (mesmo contrato, mesmo slug).
      */
-    private function useReal(bool $perSource): bool
+    private function useReal(): bool
     {
-        return OsintMode::forced() ?? $perSource;
+        return OsintMode::forced();
     }
 
     /**
-     * Maigret real (`process`) ou mock determinístico (`mock`), conforme
-     * `config/sources.php`. Mesmo slug (`maigret`), mesmo contrato — trocar a
-     * implementação não altera o restante do domínio.
+     * Maigret real ou mock determinístico, conforme o modo efetivo
+     * (`APP_ENV`/`OSINT_MODE`). Mesmo slug (`maigret`), mesmo contrato — trocar
+     * a implementação não altera o restante do domínio.
      */
     private function maigretSource(Application $app): InvestigationSource
     {
-        return $this->useReal(config('sources.maigret.driver') === 'process')
+        return $this->useReal()
             ? $app->make(MaigretAdapter::class)
             : new MaigretMockAdapter;
     }
 
     /**
-     * Sherlock real (`process`) ou mock determinístico (`mock`), conforme
-     * `config/sources.php`. Mesmo slug (`sherlock`) e mesmo contrato.
+     * Sherlock real ou mock determinístico, conforme o modo efetivo. Mesmo slug
+     * (`sherlock`) e mesmo contrato.
      */
     private function sherlockSource(Application $app): InvestigationSource
     {
-        return $this->useReal(config('sources.sherlock.driver') === 'process')
+        return $this->useReal()
             ? $app->make(SherlockAdapter::class)
             : new SherlockMockAdapter;
     }
 
     /**
      * WhatsMyName real (`http`, verificações conforme o schema do dataset) ou
-     * mock determinístico (`mock`). Mesmo slug (`whatsmyname`) e contrato.
+     * mock determinístico, conforme o modo efetivo. Mesmo slug (`whatsmyname`)
+     * e contrato.
      */
     private function whatsMyNameSource(Application $app): InvestigationSource
     {
-        return $this->useReal(config('sources.whatsmyname.driver') === 'http')
+        return $this->useReal()
             ? $app->make(WhatsMyNameAdapter::class)
             : new WhatsMyNameMockAdapter;
     }
 
     /**
      * Holehe real (`process`, GPL-3.0, sem recuperação de senha) ou mock
-     * determinístico (`mock`, padrão). Mesmo slug (`holehe`) e contrato.
+     * determinístico, conforme o modo efetivo. Mesmo slug (`holehe`) e contrato.
      */
     private function holeheSource(Application $app): InvestigationSource
     {
-        return $this->useReal(config('sources.holehe.driver') === 'process')
+        return $this->useReal()
             ? $app->make(HoleheAdapter::class)
             : new HoleheMockAdapter;
     }
 
     /**
      * Instagram (prompt 48): adapter real (script Python/instagrapi) ou mock
-     * determinístico (`mock`). Mesmo slug (`instagram`) e contrato.
+     * determinístico, conforme o modo efetivo. Mesmo slug (`instagram`) e
+     * contrato.
      */
     private function instagramSource(Application $app): InvestigationSource
     {
-        $perSourceReal = config('sources.instagram.driver') !== InstagramSettings::DRIVER_MOCK;
-
-        return $this->useReal($perSourceReal)
+        return $this->useReal()
             ? $app->make(InstagramAdapter::class)
             : new InstagramMockAdapter;
     }
@@ -186,39 +184,39 @@ class AppServiceProvider extends ServiceProvider
         // Datas relativas (diffForHumans) e formatações seguem o idioma da aplicação.
         Carbon::setLocale(config('app.locale'));
 
-        Gate::define('access-admin', fn(User $user) => $user->is_admin);
+        Gate::define('access-admin', fn (User $user) => $user->is_admin);
         Gate::policy(Investigation::class, InvestigationPolicy::class);
 
         // Investigação avulsa (prompt 41): freia criação em massa de cobranças e
         // força bruta/enumeração de tokens (limite por IP e por hash do token).
-        RateLimiter::for('guest-create', fn(Request $request) => [
-            Limit::perMinute(5)->by('guest-create-ip:' . $request->ip()),
-            Limit::perHour(20)->by('guest-create-hour:' . $request->ip()),
+        RateLimiter::for('guest-create', fn (Request $request) => [
+            Limit::perMinute(5)->by('guest-create-ip:'.$request->ip()),
+            Limit::perHour(20)->by('guest-create-hour:'.$request->ip()),
         ]);
 
         RateLimiter::for('guest-access', function (Request $request) {
             $token = (string) $request->route('token');
 
             return [
-                Limit::perMinute(60)->by('guest-access-ip:' . $request->ip()),
-                Limit::perMinute(30)->by('guest-access-token:' . hash('sha256', $token)),
+                Limit::perMinute(60)->by('guest-access-ip:'.$request->ip()),
+                Limit::perMinute(30)->by('guest-access-token:'.hash('sha256', $token)),
             ];
         });
 
         // Testes individuais de módulo (prompt 47 §12): cada disparo executa uma
         // ferramenta externa (processo/HTTP) e reserva crédito — limita rajadas
         // por administrador autenticado.
-        RateLimiter::for('module-test', fn(Request $request) => [
-            Limit::perMinute(6)->by('module-test-user:' . ($request->user()?->id ?? 'guest')),
-            Limit::perHour(60)->by('module-test-hour:' . ($request->user()?->id ?? 'guest')),
+        RateLimiter::for('module-test', fn (Request $request) => [
+            Limit::perMinute(6)->by('module-test-user:'.($request->user()?->id ?? 'guest')),
+            Limit::perHour(60)->by('module-test-hour:'.($request->user()?->id ?? 'guest')),
         ]);
 
         // Sincronização forçada de pagamento PagBank (webhook sem entrega): cada
         // acionamento reconsulta o provedor externo — limita rajadas por
         // administrador autenticado, sem afetar o polling normal do cliente.
-        RateLimiter::for('admin-sync', fn(Request $request) => [
-            Limit::perMinute(30)->by('admin-sync-user:' . ($request->user()?->id ?? 'guest')),
-            Limit::perHour(300)->by('admin-sync-hour:' . ($request->user()?->id ?? 'guest')),
+        RateLimiter::for('admin-sync', fn (Request $request) => [
+            Limit::perMinute(30)->by('admin-sync-user:'.($request->user()?->id ?? 'guest')),
+            Limit::perHour(300)->by('admin-sync-hour:'.($request->user()?->id ?? 'guest')),
         ]);
 
         // "Já paguei" (conta): cada clique reconsulta o PagBank. O limite por
@@ -229,8 +227,8 @@ class AppServiceProvider extends ServiceProvider
             $paymentId = is_object($payment) ? $payment->getKey() : $payment;
 
             return [
-                Limit::perMinute(6)->by('payment-verify-user:' . ($request->user()?->id ?? 'guest')),
-                Limit::perMinute(3)->by('payment-verify-order:' . $paymentId),
+                Limit::perMinute(6)->by('payment-verify-user:'.($request->user()?->id ?? 'guest')),
+                Limit::perMinute(3)->by('payment-verify-order:'.$paymentId),
             ];
         });
 
@@ -240,9 +238,9 @@ class AppServiceProvider extends ServiceProvider
             $token = hash('sha256', (string) $request->route('token'));
 
             return [
-                Limit::perMinute(6)->by('guest-verify-ip:' . $request->ip()),
-                Limit::perMinute(4)->by('guest-verify-token:' . $token),
-                Limit::perHour(20)->by('guest-verify-hour:' . $token),
+                Limit::perMinute(6)->by('guest-verify-ip:'.$request->ip()),
+                Limit::perMinute(4)->by('guest-verify-token:'.$token),
+                Limit::perHour(20)->by('guest-verify-hour:'.$token),
             ];
         });
     }

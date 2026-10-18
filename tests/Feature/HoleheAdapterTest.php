@@ -272,14 +272,17 @@ class HoleheAdapterTest extends TestCase
         $this->assertTrue($this->adapter->healthCheck());
     }
 
-    public function test_registry_swaps_mock_and_real_by_configuration(): void
+    public function test_registry_uses_mock_outside_production_and_real_in_production(): void
     {
+        // Fora de produção: mock, mesmo com o driver da fonte em `process`.
         config(['sources.holehe.driver' => 'process']);
         app()->forgetInstance(SourceRegistry::class);
-        $this->assertInstanceOf(HoleheAdapter::class, app(SourceRegistry::class)->get('holehe'));
-
-        config(['sources.holehe.driver' => 'mock']);
-        app()->forgetInstance(SourceRegistry::class);
         $this->assertInstanceOf(HoleheMockAdapter::class, app(SourceRegistry::class)->get('holehe'));
+
+        // Produção: real, mesmo com o driver da fonte em `mock`.
+        $this->app['env'] = 'production';
+        config(['osint.mode' => 'real', 'sources.holehe.driver' => 'mock']);
+        app()->forgetInstance(SourceRegistry::class);
+        $this->assertInstanceOf(HoleheAdapter::class, app(SourceRegistry::class)->get('holehe'));
     }
 }

@@ -199,14 +199,17 @@ class SherlockAdapterTest extends TestCase
         $this->assertTrue($this->adapter->healthCheck());
     }
 
-    public function test_registry_swaps_mock_and_real_by_configuration(): void
+    public function test_registry_uses_mock_outside_production_and_real_in_production(): void
     {
+        // Fora de produção: mock, mesmo com o driver da fonte em `process`.
         config(['sources.sherlock.driver' => 'process']);
         app()->forgetInstance(SourceRegistry::class);
-        $this->assertInstanceOf(SherlockAdapter::class, app(SourceRegistry::class)->get('sherlock'));
-
-        config(['sources.sherlock.driver' => 'mock']);
-        app()->forgetInstance(SourceRegistry::class);
         $this->assertInstanceOf(SherlockMockAdapter::class, app(SourceRegistry::class)->get('sherlock'));
+
+        // Produção: real, mesmo com o driver da fonte em `mock`.
+        $this->app['env'] = 'production';
+        config(['osint.mode' => 'real', 'sources.sherlock.driver' => 'mock']);
+        app()->forgetInstance(SourceRegistry::class);
+        $this->assertInstanceOf(SherlockAdapter::class, app(SourceRegistry::class)->get('sherlock'));
     }
 }

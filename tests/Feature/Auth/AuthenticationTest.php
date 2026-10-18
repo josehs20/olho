@@ -17,6 +17,15 @@ class AuthenticationTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_login_screen_offers_registration_link(): void
+    {
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('Ainda não tem conta?')
+            ->assertSee('Cadastrar')
+            ->assertSee('href="'.route('register').'"', false);
+    }
+
     public function test_users_can_authenticate_using_the_login_screen(): void
     {
         $user = User::factory()->create();

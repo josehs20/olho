@@ -5,10 +5,10 @@ namespace App\Sources\Adapters;
 use App\Sources\Exceptions\SourceChallengeException;
 use App\Sources\Exceptions\SourceSessionException;
 use App\Sources\Exceptions\SourceUnavailableException;
+use App\Sources\Integrations\SessionCheckable;
 use App\Sources\InvestigationContext;
 use App\Sources\InvestigationInput;
 use App\Sources\InvestigationSource;
-use App\Sources\Integrations\SessionCheckable;
 use App\Sources\SourceOutcome;
 use App\Sources\SourceResult;
 

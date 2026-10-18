@@ -186,14 +186,17 @@ class MaigretAdapterTest extends TestCase
         $this->assertTrue($this->adapter->healthCheck());
     }
 
-    public function test_registry_swaps_mock_and_real_by_configuration(): void
+    public function test_registry_uses_mock_outside_production_and_real_in_production(): void
     {
+        // Fora de produção: mock, mesmo com o driver da fonte em `process`.
         config(['sources.maigret.driver' => 'process']);
         app()->forgetInstance(SourceRegistry::class);
-        $this->assertInstanceOf(MaigretAdapter::class, app(SourceRegistry::class)->get('maigret'));
-
-        config(['sources.maigret.driver' => 'mock']);
-        app()->forgetInstance(SourceRegistry::class);
         $this->assertInstanceOf(MaigretMockAdapter::class, app(SourceRegistry::class)->get('maigret'));
+
+        // Produção: real, mesmo com o driver da fonte em `mock`.
+        $this->app['env'] = 'production';
+        config(['osint.mode' => 'real', 'sources.maigret.driver' => 'mock']);
+        app()->forgetInstance(SourceRegistry::class);
+        $this->assertInstanceOf(MaigretAdapter::class, app(SourceRegistry::class)->get('maigret'));
     }
 }

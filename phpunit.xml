@@ -37,9 +37,9 @@
         <env name="WHATSMYNAME_DRIVER" value="mock"/>
         <env name="HOLEHE_DRIVER" value="mock"/>
         <env name="INSTAGRAM_DRIVER" value="mock"/>
-        <!-- `auto` preserva a decisão por fonte (drivers `mock` acima): a suíte
-             não muda com o parâmetro central OSINT_MODE. -->
-        <env name="OSINT_MODE" value="auto"/>
+        <!-- APP_ENV=testing já força mock; `OSINT_MODE=mock` apenas documenta a
+             intenção e mantém a suíte hermética mesmo se o ambiente mudar. -->
+        <env name="OSINT_MODE" value="mock"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

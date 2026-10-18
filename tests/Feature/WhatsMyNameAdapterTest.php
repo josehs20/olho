@@ -224,14 +224,17 @@ class WhatsMyNameAdapterTest extends TestCase
         $this->assertFalse($this->adapter()->healthCheck());
     }
 
-    public function test_registry_swaps_mock_and_real_by_configuration(): void
+    public function test_registry_uses_mock_outside_production_and_real_in_production(): void
     {
+        // Fora de produção: mock, mesmo com o driver da fonte em `http`.
         config(['sources.whatsmyname.driver' => 'http']);
         app()->forgetInstance(SourceRegistry::class);
-        $this->assertInstanceOf(WhatsMyNameAdapter::class, app(SourceRegistry::class)->get('whatsmyname'));
-
-        config(['sources.whatsmyname.driver' => 'mock']);
-        app()->forgetInstance(SourceRegistry::class);
         $this->assertInstanceOf(WhatsMyNameMockAdapter::class, app(SourceRegistry::class)->get('whatsmyname'));
+
+        // Produção: real, mesmo com o driver da fonte em `mock`.
+        $this->app['env'] = 'production';
+        config(['osint.mode' => 'real', 'sources.whatsmyname.driver' => 'mock']);
+        app()->forgetInstance(SourceRegistry::class);
+        $this->assertInstanceOf(WhatsMyNameAdapter::class, app(SourceRegistry::class)->get('whatsmyname'));
     }
 }

@@ -973,4 +973,32 @@ Registro de decisões por etapa da construção da plataforma **Investigação P
 - **Fora de escopo (mantido)**: persistir `expired`/`cancelled` de todos os
   eventos, alerta de pedido parado e cache da chave pública do webhook.
 
+## Etapa 49 — Execução OSINT real somente em produção
+
+- **Validação por ambiente**: `App\Sources\OsintMode::mode()` passou a usar o
+  `APP_ENV` como validação primária, aplicada antes de qualquer investigação e
+  reaplicada em cada adapter resolvido pelo `SourceRegistry`:
+  - `APP_ENV=production` → integração real (Maigret, Sherlock, WhatsMyName,
+    Holehe e Instagram). `OSINT_MODE=real` é o padrão (inclusive quando
+    ausente/desconhecido); `OSINT_MODE=mock` fica como kill switch explícito.
+  - qualquer outro `APP_ENV` (`local`, `testing`, `staging`, …) → sempre mock
+    determinístico, sem rede, **mesmo que `OSINT_MODE=real`**.
+- **Módulos simulados fora da execução real**: `SourceDefinition` ganhou
+  `MOCK_SLUGS` (`mock-username`, `mock-email`, `mock-web`) e o scope
+  `executable()`, aplicado na tela de criação, na investigação avulsa, no
+  `resolveModules()`/`rerun()` e no `StartInvestigationRunJob` (defesa em
+  profundidade para runs enfileirados antes da troca de `APP_ENV`). Em produção
+  eles não aparecem, não são aceitos no `store` e nunca executam; no modo mock
+  (desenvolvimento/teste) continuam disponíveis. O painel admin segue listando
+  todos, para conferência/ativação.
+- **Configuração**: `phpunit.xml` passou a declarar `OSINT_MODE=mock` (a suíte
+  já roda com `APP_ENV=testing`), `config/osint.php` e `.env.example`
+  documentam a regra. `OSINT_MODE=auto` deixou de existir; em produção resolve
+  para real.
+- **Testes**: `OsintModeTest` reescrito para cobrir a validação de ambiente
+  (não-produção sempre mock, produção real por padrão, kill switch e registry);
+  `InvestigationTest` cobre a ocultação/rejeição dos mocks em produção e a
+  seleção da avulsa.
+
+
 

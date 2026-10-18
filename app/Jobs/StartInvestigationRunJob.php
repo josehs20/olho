@@ -72,7 +72,23 @@ class StartInvestigationRunJob implements ShouldBeUnique, ShouldQueue
         $definitions = SourceDefinition::query()
             ->whereIn('slug', $moduleSlugs)
             ->where('active', true)
+            ->executable()
             ->get();
+
+        // Validação de ambiente imediatamente antes da execução (defesa em
+        // profundidade para runs enfileirados antes da troca de APP_ENV): com
+        // integração real, módulos simulados não têm adapter e não executam.
+        if ($definitions->isEmpty()) {
+            $this->fail(
+                $orchestrator,
+                $sanitizer,
+                $run,
+                'no_executable_modules',
+                'Nenhum módulo executável disponível neste ambiente.',
+            );
+
+            return;
+        }
 
         // (3) Determina os módulos aplicáveis ao tipo de identificador; os
         // demais serão registrados como `skipped` (limitação observável).
@@ -135,11 +151,12 @@ class StartInvestigationRunJob implements ShouldBeUnique, ShouldQueue
         ];
         // Modo de execução (mock vs. integração real) congelado no run: a UI e o
         // relatório exibem o que valia **nesta** execução, mesmo que o operador
-        // mude `OSINT_MODE` depois. A escolha real/mock continua sendo apenas do
+        // mude `APP_ENV`/`OSINT_MODE` depois. A escolha real/mock é apenas do
         // ambiente (AppServiceProvider), nunca da entrada do usuário.
         $metadata['execution_mode'] = [
             'mode' => OsintMode::mode(),
             'label' => OsintMode::label(),
+            'environment' => app()->environment(),
             'snapshot_at' => now()->toISOString(),
         ];
         $run->metadata = $metadata;

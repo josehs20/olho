@@ -2,8 +2,6 @@
 
 namespace App\Sources\Integrations;
 
-use App\Sources\SourceOutcome;
-
 /**
  * Capacidade de diagnóstico da credencial de serviço (prompt 48 §2.1).
  *
