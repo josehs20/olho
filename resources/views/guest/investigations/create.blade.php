@@ -80,6 +80,14 @@
                     <x-alert tone="danger" class="mt-6">{{ $message }}</x-alert>
                 @enderror
 
+                @if ($paymentLinkMissing ?? false)
+                    {{-- Link do banco configurado como provedor, mas o preço da
+                         avulsa ainda não tem link: avisa antes do preenchimento. --}}
+                    <x-alert tone="warning" class="mt-6">
+                        {{ __('O pagamento por link do banco ainda não está configurado para a investigação avulsa. Avise o administrador — nenhum valor será cobrado agora.') }}
+                    </x-alert>
+                @endif
+
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <p class="text-xs text-mist-500">
                         {{ __('Ao continuar você será levado ao pagamento. A consulta só é executada após a confirmação.') }}

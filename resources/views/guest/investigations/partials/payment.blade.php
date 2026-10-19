@@ -1,3 +1,8 @@
+@php
+    $isPaymentLink = $payment?->provider === \App\Payments\PaymentSettings::PROVIDER_PAYMENT_LINK;
+    $isAwaitingManual = $paymentStatus === \App\Payments\PaymentStatus::AwaitingManualConfirmation->value;
+@endphp
+
 <x-card eyebrow="{{ __('Pagamento único') }}" :title="$isPaid ? __('O Olho começou a procurar') : __('Sua investigação está pronta para começar')">
     <div class="flex flex-wrap items-center justify-between gap-3">
         <p class="text-3xl font-semibold tabular-nums text-mist-50">
@@ -13,7 +18,42 @@
     @else
         <p class="mt-3 text-xs leading-relaxed text-mist-400">{{ __('Pagamento único. Sem assinatura. Sem cadastro obrigatório.') }}</p>
 
-        @if ($checkoutUrl && ! $isFake)
+        @if ($isPaymentLink)
+            {{-- Link gerado no site do banco: o visitante paga por PIX fora do
+                 OLHO e avisa "já paguei". Nada é liberado por clique — o
+                 administrador confere o extrato e confirma. --}}
+            @if ($isExpired)
+                <p class="mt-4 text-sm text-rose-200">{{ __('Este pedido expirou sem pagamento e a investigação não foi executada.') }}</p>
+            @else
+                <div class="mt-5 rounded-xl border border-line bg-ink-950/60 p-4">
+                    <p class="eyebrow">{{ __('PIX no site do banco') }}</p>
+                    <p class="mt-3 text-sm leading-relaxed text-mist-300">
+                        {{ __('Abra o link do banco em outra aba e pague por PIX. O link não expira — esta página continua aberta para você acompanhar.') }}
+                    </p>
+
+                    @if ($checkoutUrl)
+                        <x-btn href="{{ $checkoutUrl }}" target="_blank" rel="noopener noreferrer" variant="primary" class="mt-4 w-full">
+                            {{ __('ABRIR LINK DE PAGAMENTO') }}
+                        </x-btn>
+                    @else
+                        <x-alert tone="danger" class="mt-4">{{ __('Link de pagamento indisponível. Avise o administrador.') }}</x-alert>
+                    @endif
+
+                    @if ($isAwaitingManual)
+                        <x-alert tone="success" class="mt-4">
+                            {{ __('Recebemos o seu aviso. O administrador vai conferir o pagamento no banco e liberar a investigação.') }}
+                        </x-alert>
+                        <p class="mt-2 text-center text-[0.6875rem] text-mist-500">{{ __('Nenhuma ação é necessária agora. Esta página se atualiza sozinha quando a liberação acontecer.') }}</p>
+                    @else
+                        <form method="POST" action="{{ route('guest.payments.verify', ['token' => $token]) }}" class="mt-4">
+                            @csrf
+                            <x-btn type="submit" variant="outline" class="w-full">{{ __('JÁ PAGUEI — AVISAR O ADMINISTRADOR') }}</x-btn>
+                            <p class="mt-2 text-center text-[0.6875rem] text-mist-500">{{ __('Depois de pagar, avise aqui. O administrador confere o recebimento e libera a investigação.') }}</p>
+                        </form>
+                    @endif
+                </div>
+            @endif
+        @elseif ($checkoutUrl && ! $isFake)
             {{-- PagBank: o cliente paga no ambiente seguro do provedor, em **outra
                  aba** — esta página (que é o acesso dele à investigação) continua
                  aberta para ele voltar e ver o resultado. --}}
@@ -65,7 +105,7 @@
 
         {{-- Fallback explícito para o webhook que não chega: o visitante pede a
              verificação e o servidor consulta o PagBank antes de liberar. --}}
-        @if (! $isFake && ! $isExpired)
+        @if (! $isFake && ! $isPaymentLink && ! $isExpired)
             <form method="POST" action="{{ route('guest.payments.verify', ['token' => $token]) }}" class="mt-4">
                 @csrf
                 <x-btn type="submit" variant="outline" class="w-full">{{ __('JÁ PAGUEI — VERIFICAR AGORA') }}</x-btn>

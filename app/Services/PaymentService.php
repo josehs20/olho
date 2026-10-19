@@ -14,6 +14,7 @@ use App\Payments\DirectPixProvider;
 use App\Payments\FakePixProvider;
 use App\Payments\PagBank\PagBankException;
 use App\Payments\PaymentChannel;
+use App\Payments\PaymentLinkProvider;
 use App\Payments\PaymentMethod;
 use App\Payments\PaymentProvider;
 use App\Payments\PaymentSettings;
@@ -166,6 +167,16 @@ class PaymentService
     {
         $this->ensureProviderReady();
 
+        // Link colado no pacote: não há cobrança a criar — o pedido apenas
+        // aponta para a página do banco. Cartão não é oferecido neste fluxo.
+        if ($this->provider instanceof PaymentLinkProvider) {
+            if ($channel === PaymentChannel::Card) {
+                throw PaymentUnavailableException::channelUnavailable();
+            }
+
+            return $this->startPaymentLink($payment);
+        }
+
         if ($channel === PaymentChannel::Pix && $this->provider instanceof DirectPixProvider) {
             return $this->startPixCharge($payment);
         }
@@ -181,6 +192,135 @@ class PaymentService
         }
 
         return $this->startPixCharge($payment);
+    }
+
+    /**
+     * Aponta o pedido para o link de pagamento do pacote (provedor `payment_link`).
+     *
+     * O link é do próprio banco, sem expiração e sem API: não há cobrança a
+     * criar, status a consultar nem webhook a receber. O pedido nasce
+     * `awaiting_payment` e só muda por ação do administrador, depois de ele
+     * conferir o extrato (`confirmManual`).
+     */
+    private function startPaymentLink(Payment $payment): Payment
+    {
+        $package = CreditPackage::query()->find($payment->credit_package_id);
+
+        if ($package === null || ! $package->hasPaymentLink()) {
+            throw PaymentUnavailableException::missingPaymentLink();
+        }
+
+        $link = trim((string) $package->payment_link);
+
+        // Referência local, nunca um id do banco: serve para a auditoria e para
+        // a confirmação manual localizar o pedido sem depender de API externa.
+        $payment->external_id ??= 'link-'.$payment->getKey();
+        $payment->provider_checkout_id = null;
+        $payment->checkout_url = $link;
+        $payment->method = PaymentMethod::Pix;
+        $payment->environment = null;
+        $payment->status = PaymentStatus::AwaitingPayment->value;
+        // O link do banco não expira: o pedido também não.
+        $payment->expires_at = null;
+        $payment->metadata = array_merge($payment->metadata ?? [], [
+            'payment_link' => $link,
+            'payment_manual' => true,
+        ]);
+        $payment->save();
+
+        return $payment;
+    }
+
+    /**
+     * Registra que o comprador informou o pagamento ("Já paguei").
+     *
+     * Nada é liberado: o pedido entra na fila de conferência manual do painel
+     * administrativo. Idempotente — clicar várias vezes mantém um único evento.
+     */
+    public function requestManualConfirmation(Payment $payment): Payment
+    {
+        if ($payment->provider !== PaymentSettings::PROVIDER_PAYMENT_LINK) {
+            return $payment;
+        }
+
+        if ($payment->status === PaymentStatus::Paid->value
+            || $payment->status === PaymentStatus::AwaitingManualConfirmation->value) {
+            return $payment;
+        }
+
+        if (! in_array($payment->status, [PaymentStatus::Pending->value, PaymentStatus::AwaitingPayment->value], true)) {
+            return $payment;
+        }
+
+        DB::transaction(function () use ($payment): void {
+            $locked = Payment::query()->lockForUpdate()->find($payment->getKey());
+
+            if ($locked === null
+                || ! in_array($locked->status, [PaymentStatus::Pending->value, PaymentStatus::AwaitingPayment->value], true)) {
+                return;
+            }
+
+            $locked->status = PaymentStatus::AwaitingManualConfirmation->value;
+            $locked->metadata = array_merge($locked->metadata ?? [], [
+                'manual_requested_at' => now()->toIso8601String(),
+            ]);
+            $locked->save();
+
+            PaymentEvent::query()->firstOrCreate(
+                ['external_event_id' => 'manual-request-'.$locked->getKey()],
+                [
+                    'payment_id' => $locked->getKey(),
+                    'type' => 'payment.awaiting_manual_confirmation',
+                    'status' => PaymentStatus::AwaitingManualConfirmation->value,
+                    'payload' => ['source' => 'buyer'],
+                ],
+            );
+        });
+
+        return $payment->refresh();
+    }
+
+    /**
+     * Confirma manualmente um pagamento do link do banco (ação do administrador).
+     *
+     * Reaproveita `confirmPayment()`: a concessão de créditos/liberação da
+     * avulsa continua idempotente e a transação é a mesma do webhook. O evento
+     * sintético é único por pedido, então dois cliques do admin não creditam
+     * duas vezes.
+     */
+    public function confirmManual(Payment $payment): Payment
+    {
+        if ($payment->provider !== PaymentSettings::PROVIDER_PAYMENT_LINK) {
+            throw new \InvalidArgumentException('Este pedido não pertence ao provedor de link de pagamento.');
+        }
+
+        if ($payment->status === PaymentStatus::Paid->value) {
+            return $payment;
+        }
+
+        if (in_array($payment->status, [PaymentStatus::Refunded->value, PaymentStatus::Failed->value], true)) {
+            throw new \InvalidArgumentException('Pedido estornado ou recusado não pode ser confirmado manualmente.');
+        }
+
+        if ($payment->external_id === null) {
+            $payment->external_id = 'link-'.$payment->getKey();
+            $payment->save();
+        }
+
+        return $this->confirmPayment(new VerifiedPaymentEvent(
+            externalEventId: 'manual-confirm-'.$payment->getKey(),
+            externalId: $payment->external_id,
+            status: PaymentStatus::Paid->value,
+            method: PaymentMethod::Pix->value,
+        ));
+    }
+
+    /**
+     * O provedor ativo é o link de pagamento do banco?
+     */
+    public function usesPaymentLink(): bool
+    {
+        return $this->settings->usesPaymentLink();
     }
 
     /**
@@ -354,7 +494,17 @@ class PaymentService
      */
     public function acceptsPix(): bool
     {
-        if (! $this->available() || ! $this->settings->pixEnabled()) {
+        if (! $this->available()) {
+            return false;
+        }
+
+        // No link do banco o PIX é a própria página do banco: os toggles de
+        // método do PagBank não se aplicam.
+        if ($this->provider instanceof PaymentLinkProvider) {
+            return true;
+        }
+
+        if (! $this->settings->pixEnabled()) {
             return false;
         }
 
@@ -389,6 +539,13 @@ class PaymentService
      */
     public function reconcile(Payment $payment): PaymentStatus
     {
+        // Link do banco: não existe API para consultar. O estado só muda pela
+        // confirmação manual do administrador — nenhuma consulta pode inventar
+        // um pagamento.
+        if ($payment->provider === PaymentSettings::PROVIDER_PAYMENT_LINK) {
+            return PaymentStatus::from($payment->status);
+        }
+
         // Pedido criado por outro provedor (troca no painel) ou sem cobrança
         // criada: não há o que reconciliar — vale o estado persistido.
         if ($payment->provider !== $this->settings->provider() || $payment->external_id === null) {
@@ -423,7 +580,8 @@ class PaymentService
      */
     public function reconcileThrottled(Payment $payment, ?int $seconds = null): PaymentStatus
     {
-        if ($payment->status !== PaymentStatus::AwaitingPayment->value) {
+        if ($payment->status !== PaymentStatus::AwaitingPayment->value
+            || $payment->provider === PaymentSettings::PROVIDER_PAYMENT_LINK) {
             return PaymentStatus::from($payment->status);
         }
 

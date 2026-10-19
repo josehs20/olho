@@ -8,6 +8,7 @@ use App\Models\Investigation;
 use App\Models\InvestigationRun;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
+use App\Payments\PaymentSettings;
 use App\Payments\PaymentStatus;
 use Illuminate\Support\Facades\DB;
 
@@ -222,6 +223,14 @@ class GuestInvestigationService
     private function expire(Investigation $investigation): bool
     {
         $payment = $investigation->guestPayment;
+
+        // Link do banco não expira (decisão de negócio) e pedido em conferência
+        // manual precisa continuar existindo até o administrador decidir.
+        if ($payment !== null
+            && ($payment->provider === PaymentSettings::PROVIDER_PAYMENT_LINK
+                || $payment->status === PaymentStatus::AwaitingManualConfirmation->value)) {
+            return false;
+        }
 
         // Pagamento confirmado (webhook atrasado): libera em vez de expirar.
         if ($payment !== null && $payment->status === PaymentStatus::Paid->value) {

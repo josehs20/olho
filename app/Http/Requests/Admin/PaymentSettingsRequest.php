@@ -23,7 +23,11 @@ class PaymentSettingsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'provider' => ['required', Rule::in([PaymentSettings::PROVIDER_FAKE, PaymentSettings::PROVIDER_PAGBANK])],
+            'provider' => ['required', Rule::in([
+                PaymentSettings::PROVIDER_FAKE,
+                PaymentSettings::PROVIDER_PAGBANK,
+                PaymentSettings::PROVIDER_PAYMENT_LINK,
+            ])],
             'enabled' => ['boolean'],
             'environment' => ['required', Rule::in([PaymentSettings::ENV_SANDBOX, PaymentSettings::ENV_PRODUCTION])],
             // Segredo opcional: se vazio, o token atual é preservado. O valor chega

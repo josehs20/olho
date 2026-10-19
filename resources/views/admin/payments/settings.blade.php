@@ -27,9 +27,9 @@
             {{-- Status da integração --}}
             <div class="surface mb-6 p-6">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h3 class="text-lg font-semibold text-mist-100">PagBank</h3>
-                    <span class="badge {{ $lastTestOk ? 'badge-signal' : 'badge-warning' }}">
-                        {{ $lastTestOk ? __('● Conectado') : __('○ Não verificado') }}
+                    <h3 class="text-lg font-semibold text-mist-100">{{ $settings->usesPaymentLink() ? __('Link do banco') : 'PagBank' }}</h3>
+                    <span class="badge {{ $settings->usesPaymentLink() || $lastTestOk ? 'badge-signal' : 'badge-warning' }}">
+                        {{ $settings->usesPaymentLink() ? __('● Confirmação manual') : ($lastTestOk ? __('● Conectado') : __('○ Não verificado')) }}
                     </span>
                 </div>
 
@@ -38,6 +38,7 @@
                         <dt class="text-mist-400">Status</dt>
                         <dd class="text-mist-100">{{ $settings->enabled() ? __('Ativo') : __('Desativado') }}</dd>
                     </div>
+                    @unless ($settings->usesPaymentLink())
                     <div class="flex justify-between gap-2 sm:block">
                         <dt class="text-mist-400">Ambiente</dt>
                         <dd class="text-mist-100">{{ $settings->isProduction() ? __('Produção') : __('Sandbox') }}</dd>
@@ -70,6 +71,16 @@
                         <dt class="text-mist-400">Endpoint testado</dt>
                         <dd class="text-mist-100 font-mono text-xs break-all">{{ $testEndpoint }}</dd>
                     </div>
+                    @else
+                    <div class="flex justify-between gap-2 sm:block sm:col-span-2">
+                        <dt class="text-mist-400">{{ __('Confirmação') }}</dt>
+                        <dd class="text-mist-100">{{ __('Manual: o administrador confere o extrato e libera em “PIX já pago”.') }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-2 sm:block sm:col-span-2">
+                        <dt class="text-mist-400">{{ __('Link por pacote') }}</dt>
+                        <dd class="text-mist-100">{{ __('Configurado em Pacotes — cada pacote tem o seu link do banco.') }}</dd>
+                    </div>
+                    @endunless
                 </dl>
 
                 @if (! $lastTestOk && $lastTestError)
@@ -107,7 +118,7 @@
                      simulada (nenhum checkout hospedado => nenhum cartão para o cliente).
                      Sem este aviso, um token já testado com sucesso passa a impressão de
                      que o cartão está no ar. --}}
-                @if ($settings->provider() !== 'pagbank' && $hasToken)
+                @if ($settings->provider() === 'fake' && $hasToken)
                     <p class="mt-4 rounded-lg border border-warn-soft/40 bg-warn-soft/10 px-3 py-2 text-xs text-warn-soft">
                         {{ __('Existe um token do PagBank salvo, mas o provedor ativo é o Fake (simulado): o cliente vê apenas PIX e o cartão não é oferecido. Selecione PagBank no campo Provedor acima e salve para cobrar de verdade.') }}
                     </p>
@@ -133,6 +144,7 @@
                             <select id="provider" name="provider" class="field">
                                 <option value="fake" @selected(old('provider', $settings->provider()) === 'fake')>{{ __('Fake (desenvolvimento)') }}</option>
                                 <option value="pagbank" @selected(old('provider', $settings->provider()) === 'pagbank')>PagBank</option>
+                                <option value="payment_link" @selected(old('provider', $settings->provider()) === 'payment_link')>{{ __('Link do banco (confirmação manual)') }}</option>
                             </select>
                         </div>
                         <div>

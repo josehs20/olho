@@ -61,6 +61,9 @@
     @php
      $pixChannel = in_array(\App\Payments\PaymentChannel::Pix, $channels ?? [], true);
      $cardChannel = in_array(\App\Payments\PaymentChannel::Card, $channels ?? [], true);
+     // Link do banco: sem link no pacote não há como cobrar — o botão fica
+     // desabilitado e o backend recusa (nada de pedido sem forma de pagamento).
+     $needsLink = ($paymentLinkOnly ?? false) && ! $package->hasPaymentLink();
     @endphp
     <div class="overflow-hidden surface">
      <div class="p-6">
@@ -84,10 +87,15 @@
         @csrf
         <input type="hidden" name="channel" value="{{ \App\Payments\PaymentChannel::Pix->value }}">
 
-        <button type="submit" class="btn btn-primary w-full" @disabled(! ($available ?? true))>
+        <button type="submit" class="btn btn-primary w-full" @disabled(! ($available ?? true) || $needsLink)>
         {{ __('Comprar com PIX') }}
         </button>
        </form>
+       @if ($needsLink)
+        <p class="text-center text-[0.6875rem] leading-relaxed text-warn-soft">
+        {{ __('Link de pagamento não configurado para este pacote. Avise o administrador.') }}
+        </p>
+       @endif
       @endif
 
       @if ($cardChannel)
@@ -111,7 +119,11 @@
       @endif
       </div>
 
-      @if ($cardChannel)
+      @if (($paymentLinkOnly ?? false) && $pixChannel)
+      <p class="mt-3 text-center text-[0.6875rem] leading-relaxed text-mist-500">
+      {{ __('Você será levado ao site do banco para pagar por PIX. Depois de pagar, clique em “Já paguei” no pedido: o administrador confere o recebimento e libera os créditos.') }}
+      </p>
+      @elseif ($cardChannel)
       <p class="mt-3 text-center text-[0.6875rem] leading-relaxed text-mist-500">
       {{ __('O cartão é concluído no ambiente seguro do PagBank. O Olho nunca recebe dados de cartão.') }}
       </p>

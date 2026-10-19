@@ -17,6 +17,7 @@
         'skipped' => ['neutral', 'não pesquisado'],
         'timeout' => ['danger', 'tempo esgotado'],
         'awaiting_payment' => ['warning', 'aguardando pagamento'],
+        'awaiting_manual_confirmation' => ['warning', 'em conferência'],
         'paid' => ['success', 'pago'],
         'refunded' => ['violet', 'estornado'],
     ];

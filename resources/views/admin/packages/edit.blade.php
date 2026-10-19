@@ -38,6 +38,13 @@
     @error('price_cents') <p class="mt-1 text-sm text-rose-300">{{ $message }}</p> @enderror
    </div>
 
+   <div>
+    <label class="block text-sm font-medium text-mist-300">{{ __('Link de pagamento (banco)') }}</label>
+    <input type="url" name="payment_link" value="{{ old('payment_link', $package->payment_link) }}" placeholder="https://..." class="field mt-1">
+    <p class="mt-1 text-xs text-mist-500">{{ __('Cole o link gerado no site do seu banco. Ele não expira. Deixe em branco se este pacote não for vendido por link.') }}</p>
+    @error('payment_link') <p class="mt-1 text-sm text-rose-300">{{ $message }}</p> @enderror
+   </div>
+
    <label class="flex items-center gap-2 text-sm text-mist-300">
     <input type="checkbox" name="active" value="1" @checked(old('active', $package->active)) class="rounded border-line">
     {{ __('Ativo') }}

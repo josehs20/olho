@@ -32,8 +32,13 @@ class InvestigationController extends Controller
 
     public function create(): View
     {
+        $price = $this->guests->pricePackage();
+
         return view('guest.investigations.create', [
-            'price' => $this->guests->pricePackage(),
+            'price' => $price,
+            // Com o link do banco, sem link no preço da avulsa não há como cobrar:
+            // a tela avisa antes de o visitante preencher tudo.
+            'paymentLinkMissing' => $this->payments->usesPaymentLink() && ! $price->hasPaymentLink(),
         ]);
     }
 
@@ -47,6 +52,14 @@ class InvestigationController extends Controller
         if (! $this->payments->available()) {
             return back()->withInput()->withErrors([
                 'payment' => __('Pagamentos estão temporariamente indisponíveis. Tente novamente mais tarde.'),
+            ]);
+        }
+
+        // Provedor de link do banco sem link no preço da avulsa: recusa antes de
+        // criar a investigação (não deixa rascunho órfão sem forma de pagamento).
+        if ($this->payments->usesPaymentLink() && ! $this->guests->pricePackage()->hasPaymentLink()) {
+            return back()->withInput()->withErrors([
+                'payment' => PaymentUnavailableException::missingPaymentLink()->getMessage(),
             ]);
         }
 

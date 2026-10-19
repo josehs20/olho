@@ -17,6 +17,14 @@ final class PaymentSettings
 
     public const PROVIDER_PAGBANK = 'pagbank';
 
+    /**
+     * Link de pagamento gerado no site do banco, colado em cada pacote.
+     *
+     * Sem API, sem webhook e sem expiração: o comprador paga pelo link e o
+     * administrador confere o extrato antes de liberar créditos/execução.
+     */
+    public const PROVIDER_PAYMENT_LINK = 'payment_link';
+
     public const ENV_SANDBOX = 'sandbox';
 
     public const ENV_PRODUCTION = 'production';
@@ -68,6 +76,25 @@ final class PaymentSettings
     public function enabled(): bool
     {
         return $this->settings->getBool(self::KEY_ENABLED, (bool) config('payments.defaults.enabled', true));
+    }
+
+    /**
+     * O provedor ativo é o link de pagamento do banco?
+     */
+    public function usesPaymentLink(): bool
+    {
+        return $this->provider() === self::PROVIDER_PAYMENT_LINK;
+    }
+
+    /**
+     * Link do banco ativo e com pagamentos habilitados.
+     *
+     * Não basta para cobrar: cada pacote ainda precisa do seu próprio link
+     * (`credit_packages.payment_link`).
+     */
+    public function hasUsablePaymentLink(): bool
+    {
+        return $this->usesPaymentLink() && $this->enabled();
     }
 
     public function environment(): string

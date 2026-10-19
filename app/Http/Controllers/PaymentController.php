@@ -45,6 +45,9 @@ class PaymentController extends Controller
             // Canais oferecidos agora (PIX e/ou cartão): cada botão só aparece se o
             // provedor e as configurações do painel permitirem.
             'channels' => $this->payments->availableChannels(),
+            // Com o link do banco, o pacote sem link aparece desabilitado com a
+            // orientação de configurar em Admin → Pacotes.
+            'paymentLinkOnly' => $this->payments->usesPaymentLink(),
             // Saldo lido do ledger a cada carregamento: o comprador que pagou em
             // outra aba volta aqui, recarrega e confere os créditos (nada é somado
             // no navegador).
@@ -92,6 +95,13 @@ class PaymentController extends Controller
             $message = __('Não foi possível iniciar o pagamento agora. O motivo foi registrado para o administrador — tente novamente em alguns minutos.');
 
             return back()->with('error', $message);
+        }
+
+        // Link do banco: a página do pedido é o ponto de retorno. Mandar direto
+        // para o banco deixaria o comprador sem o botão "Já paguei" e sem
+        // acompanhamento — o link do banco abre a partir da página do pedido.
+        if ($payment->provider === PaymentSettings::PROVIDER_PAYMENT_LINK) {
+            return redirect()->route('payments.show', $payment);
         }
 
         // Checkout hospedado: o comprador paga no ambiente do provedor, sem nenhum
@@ -145,6 +155,20 @@ class PaymentController extends Controller
                 ->with('status', __('Pagamento já confirmado. Créditos adicionados à sua carteira.'));
         }
 
+        // Link do banco: o clique apenas entra na fila de conferência manual.
+        // Quem libera os créditos é o administrador, depois de ver o extrato.
+        if ($payment->provider === PaymentSettings::PROVIDER_PAYMENT_LINK) {
+            $payment = $this->payments->requestManualConfirmation($payment);
+
+            if ($payment->status === PaymentStatus::AwaitingManualConfirmation->value) {
+                return redirect()->route('payments.show', $payment)
+                    ->with('status', __('Pagamento informado. O administrador vai conferir e liberar os créditos.'));
+            }
+
+            return redirect()->route('payments.show', $payment)
+                ->with('error', __('Este pedido não está mais aguardando pagamento.'));
+        }
+
         if ($payment->provider === PaymentSettings::PROVIDER_FAKE || $payment->external_id === null) {
             return redirect()->route('payments.show', $payment)
                 ->with('error', __('Este pedido ainda não tem uma cobrança no PagBank para consultar. Recarregue a página.'));
@@ -183,6 +207,9 @@ class PaymentController extends Controller
         return view('payments.show', [
             'payment' => $payment,
             'isFake' => $payment->provider === PaymentSettings::PROVIDER_FAKE,
+            // Link colado no pacote: a página mostra o botão do banco e o
+            // acompanhamento da conferência manual (sem PIX copia-e-cola).
+            'isPaymentLink' => $payment->provider === PaymentSettings::PROVIDER_PAYMENT_LINK,
             // A página acompanha o pedido até a confirmação chegar.
             'statusUrl' => route('payments.status', $payment),
         ]);

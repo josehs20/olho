@@ -84,6 +84,23 @@ class PaymentController extends Controller
                 ->with('status', __('Pagamento já confirmado. A investigação está liberada.'));
         }
 
+        // Link do banco: "Já paguei" só registra o aviso para o administrador
+        // conferir o extrato. A execução continua bloqueada até a confirmação
+        // manual — o visitante nunca libera a própria investigação.
+        if ($payment->provider === PaymentSettings::PROVIDER_PAYMENT_LINK) {
+            $payment = $this->payments->requestManualConfirmation($payment);
+
+            if ($payment->status === PaymentStatus::AwaitingManualConfirmation->value) {
+                return redirect()
+                    ->route('guest.investigations.show', ['token' => $token])
+                    ->with('status', __('Pagamento informado. O administrador vai conferir e liberar a investigação.'));
+            }
+
+            return redirect()
+                ->route('guest.investigations.show', ['token' => $token])
+                ->with('error', __('Este pedido não está mais aguardando pagamento.'));
+        }
+
         if ($payment->status !== PaymentStatus::AwaitingPayment->value) {
             return redirect()
                 ->route('guest.investigations.show', ['token' => $token])

@@ -9,6 +9,8 @@
   // Estado real persistido (nada é inferido no HTML) + dados do PIX emitidos.
   $isPaid = $payment->status === \App\Payments\PaymentStatus::Paid->value;
   $pixPayload = (string) data_get($payment->metadata, 'pix_payload', '');
+  $isPaymentLink = $isPaymentLink ?? false;
+  $isAwaitingManual = $payment->status === \App\Payments\PaymentStatus::AwaitingManualConfirmation->value;
  @endphp
 
  <div class="py-12">
@@ -40,6 +42,34 @@
     <div class="mt-6 rounded-xl border border-emerald-600/40 bg-emerald-600/10 p-4">
      <p class="text-sm leading-relaxed text-emerald-300">{{ __('Pagamento confirmado. Créditos adicionados à sua carteira.') }}</p>
      <x-btn href="{{ route('investigations.create') }}" variant="primary" class="mt-4 w-full">{{ __('Usar meus créditos') }}</x-btn>
+    </div>
+    @elseif ($isPaymentLink)
+    {{-- Link gerado no site do banco: o comprador paga por PIX fora do OLHO e
+         avisa "já paguei". O crédito só entra depois que o administrador
+         confere o extrato — o clique não confirma nada. --}}
+    <div class="mt-6 rounded-xl border border-line bg-ink-950/60 p-4">
+     <p class="eyebrow">{{ __('PIX no site do banco') }}</p>
+     <p class="mt-3 text-sm leading-relaxed text-mist-300">{{ __('Este link foi gerado no site do seu banco e não expira. Abra em outra aba e pague por PIX: esta página continua acompanhando o pedido.') }}</p>
+
+     @if ($payment->checkout_url)
+     <x-btn href="{{ $payment->checkout_url }}" target="_blank" rel="noopener noreferrer" variant="primary" class="mt-4 w-full">{{ __('ABRIR LINK DE PAGAMENTO') }}</x-btn>
+     @else
+     <x-alert tone="danger" class="mt-4">{{ __('Este pedido não tem link de pagamento. Volte aos pacotes e gere um novo pedido ou avise o administrador.') }}</x-alert>
+     @endif
+
+     @if ($isAwaitingManual)
+     <x-alert tone="success" class="mt-4">{{ __('Aviso recebido. O administrador vai conferir o pagamento no banco e liberar os créditos.') }}</x-alert>
+     <div class="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-ink-950/40 px-3 py-3">
+      <span class="badge badge-warning animate-pulse">{{ __('Em conferência') }}</span>
+      <span class="text-sm text-mist-300">{{ __('Nenhuma ação é necessária agora.') }}</span>
+     </div>
+     @else
+     <form method="POST" action="{{ route('payments.verify', $payment) }}" class="mt-4">
+      @csrf
+      <x-btn type="submit" variant="outline" class="w-full">{{ __('JÁ PAGUEI — AVISAR O ADMINISTRADOR') }}</x-btn>
+      <p class="mt-2 text-center text-[0.6875rem] text-mist-500">{{ __('Depois de pagar, avise aqui. O administrador confere o recebimento e libera os créditos.') }}</p>
+     </form>
+     @endif
     </div>
     @elseif ($payment->checkout_url && ! $isFake)
     {{-- Cartão/checkout: o comprador conclui no ambiente do PagBank. O link abre
@@ -85,7 +115,7 @@
 
     {{-- Fallback quando a notificação do PagBank não chega: o comprador pede a
          verificação e o servidor consulta o provedor antes de liberar. --}}
-    @if (! $isPaid && ! $isFake)
+    @if (! $isPaid && ! $isFake && ! $isPaymentLink)
     <form method="POST" action="{{ route('payments.verify', $payment) }}" class="mt-5">
      @csrf
      <x-btn type="submit" variant="outline" class="w-full">{{ __('JÁ PAGUEI — VERIFICAR AGORA') }}</x-btn>

@@ -31,4 +31,13 @@ final class PaymentUnavailableException extends RuntimeException
     {
         return new self('Esta forma de pagamento não está disponível no momento. Escolha outra opção ou avise o administrador.');
     }
+
+    /**
+     * O provedor ativo é o link do banco, mas o pacote escolhido ainda não tem
+     * link configurado (Admin → Pacotes).
+     */
+    public static function missingPaymentLink(): self
+    {
+        return new self('Este pacote ainda não tem link de pagamento configurado. Avise o administrador.');
+    }
 }

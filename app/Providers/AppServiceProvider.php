@@ -6,6 +6,7 @@ use App\Models\Investigation;
 use App\Models\User;
 use App\Payments\FakePixProvider;
 use App\Payments\PagBankProvider;
+use App\Payments\PaymentLinkProvider;
 use App\Payments\PaymentProvider;
 use App\Payments\PaymentSettings;
 use App\Policies\InvestigationPolicy;
@@ -54,6 +55,7 @@ class AppServiceProvider extends ServiceProvider
             return match ($settings->provider()) {
                 PaymentSettings::PROVIDER_FAKE => new FakePixProvider,
                 PaymentSettings::PROVIDER_PAGBANK => $app->make(PagBankProvider::class),
+                PaymentSettings::PROVIDER_PAYMENT_LINK => new PaymentLinkProvider,
                 default => throw new \RuntimeException('Payment provider não suportado: '.$settings->provider()),
             };
         });

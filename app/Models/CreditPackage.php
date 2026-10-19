@@ -46,6 +46,17 @@ class CreditPackage extends Model
     }
 
     /**
+     * O pacote pode ser vendido pelo link do banco?
+     *
+     * Sem link não há como cobrar neste provedor: a UI desabilita o botão e o
+     * backend recusa a cobrança em vez de criar um pedido sem forma de pagamento.
+     */
+    public function hasPaymentLink(): bool
+    {
+        return is_string($this->payment_link) && trim($this->payment_link) !== '';
+    }
+
+    /**
      * @param  Builder<CreditPackage>  $query
      * @return Builder<CreditPackage>
      */

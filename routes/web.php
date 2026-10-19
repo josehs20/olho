@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\IntegrationSettingsController as AdminIntegrationSettingsController;
 use App\Http\Controllers\Admin\InvestigationController as AdminInvestigationController;
 use App\Http\Controllers\Admin\ModuleTestController as AdminModuleTestController;
+use App\Http\Controllers\Admin\ManualPaymentController as AdminManualPaymentController;
 use App\Http\Controllers\Admin\PackageController as AdminPackageController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\PaymentSettingsController as AdminPaymentSettingsController;
@@ -54,6 +55,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::resource('packages', AdminPackageController::class)->except(['show']);
 
     Route::get('/payments', [AdminPaymentController::class, 'index'])->name('payments.index');
+
+    // Fila de conferência do link do banco (provedor `payment_link`): o
+    // comprador avisa "já paguei" e o administrador confere o extrato aqui.
+    Route::get('/payments/manual', [AdminManualPaymentController::class, 'index'])->name('payments.manual');
+    Route::post('/payments/{payment}/manual-confirm', [AdminManualPaymentController::class, 'confirm'])->name('payments.manual-confirm');
+    Route::post('/payments/{payment}/manual-dismiss', [AdminManualPaymentController::class, 'dismiss'])->name('payments.manual-dismiss');
 
     Route::post('/payments/{payment}/sync', [PagBankSyncController::class, 'sync'])
         ->middleware('throttle:admin-sync')

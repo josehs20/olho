@@ -49,11 +49,15 @@ class PackageController extends Controller
     public function update(Request $request, CreditPackage $package): RedirectResponse
     {
         if ($package->isGuestKind()) {
-            $package->update($request->validate([
+            $validated = $request->validate([
                 'name' => ['required', 'string', 'max:255'],
                 'price_cents' => ['required', 'integer', 'min:1'],
                 'active' => ['boolean'],
-            ]) + ['credits' => 0]);
+                'payment_link' => $this->paymentLinkRules(),
+            ]);
+            $validated['payment_link'] = $this->normalizePaymentLink($validated['payment_link'] ?? null);
+
+            $package->update($validated + ['credits' => 0]);
 
             return redirect()->route('admin.packages.index')
                 ->with('status', 'Preço da investigação avulsa atualizado.');
@@ -79,12 +83,41 @@ class PackageController extends Controller
 
     private function validatedCredits(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'credits' => ['required', 'integer', 'min:1'],
             'price_cents' => ['required', 'integer', 'min:0'],
             'active' => ['boolean'],
             'display_order' => ['nullable', 'integer', 'min:0'],
+            'payment_link' => $this->paymentLinkRules(),
         ]);
+
+        $validated['payment_link'] = $this->normalizePaymentLink($validated['payment_link'] ?? null);
+
+        return $validated;
+    }
+
+    /**
+     * Link de pagamento colado pelo administrador (gerado no site do banco).
+     *
+     * Só http/https: um `javascript:` ou esquema exótico viraria um redirect
+     * perigoso na página de pagamento do comprador.
+     *
+     * @return array<int, string>
+     */
+    private function paymentLinkRules(): array
+    {
+        return ['nullable', 'string', 'max:2048', 'url:http,https'];
+    }
+
+    private function normalizePaymentLink(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
     }
 }
